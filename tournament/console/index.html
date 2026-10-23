@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="ka">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="no-referrer">
+  <title>DERBY · Console</title>
+  <link rel="icon" type="image/png" href="../../assets/img/favicon.png">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Noto+Sans+Georgian:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="console.css?v=4">
+</head>
+<body>
+  <header class="bar">
+    <span class="id">DERBY/CONSOLE <span class="dim">tournament</span></span>
+    <nav>
+      <span class="net" id="net"><i></i><span>offline</span></span>
+      <a href="../" target="_blank" rel="noopener" id="tvLink">[ TV ↗ ]</a>
+      <button id="menuBtn" class="menu-btn" hidden aria-label="მენიუ">[ ≡ ]</button>
+      <button id="logout" hidden>[ გასვლა ]</button>
+    </nav>
+  </header>
+
+  <section id="loginPanel" class="box login" hidden>
+    <div class="box-head">AUTH :: კონსოლში შესვლა</div>
+    <form id="loginForm" class="box-body">
+      <label for="password">პაროლი</label>
+      <input id="password" type="password" autocomplete="current-password" required maxlength="200" spellcheck="false">
+      <button class="primary" id="signIn">შესვლა</button>
+    </form>
+    <div class="box-foot" id="loginFoot">derby-live :: checking</div>
+  </section>
+
+  <div id="app" class="shell" hidden>
+    <nav id="side" class="side" aria-label="კონსოლი">
+      <a href="#/overview" data-view="overview">overview</a>
+      <p class="side-h">tournament</p>
+      <a href="#/players" data-view="players">players</a>
+      <a href="#/draw" data-view="draw">draw</a>
+      <a href="#/matches" data-view="matches">matches</a>
+      <p class="side-h">screen</p>
+      <a href="#/display" data-view="display">display</a>
+      <a href="#/settings" data-view="settings">settings</a>
+      <p class="side-h">admin</p>
+      <a href="#/danger" data-view="danger" class="bad">danger_zone</a>
+      <p class="side-foot dim" id="clock"></p>
+    </nav>
+    <main id="view" class="view" aria-live="polite"></main>
+  </div>
+
+  <p id="message" role="status" aria-live="polite"></p>
+
+  <footer id="statusbar" class="statusbar" hidden>
+    <span id="sbState" class="sb-state">synced</span>
+    <span class="dim" id="sbMeta"></span>
+    <label class="sb-auto"><input type="checkbox" id="autosave"> autosave</label>
+    <button class="primary" id="saveBtn" disabled>[ შენახვა ] <span class="dim-k">ctrl+s</span></button>
+  </footer>
+
+  <script src="../shared.js?v=3"></script>
+  <script src="console.js?v=3"></script>
+</body>
+</html>

@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="ka">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>DERBY · ტურნირი LIVE</title>
+  <meta name="description" content="DERBY ბილიარდის ტურნირი: მოთამაშეები, ბადე და შედეგები პირდაპირ ეთერში.">
+  <meta name="theme-color" content="#05080f">
+  <link rel="icon" type="image/png" href="../assets/img/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Noto+Sans+Georgian:wdth,wght@62.5..100,400..900&family=Unbounded:wght@500;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="tv.css?v=4">
+</head>
+<body>
+  <div class="viewport" id="viewport">
+    <div class="stage" id="stage">
+      <div class="stage__felt"></div>
+
+      <header class="tv-head">
+        <div class="tv-brand">
+          <img src="../assets/img/crest.png" alt="">
+          <div>
+            <b>DERBY</b>
+            <span id="tvSub">სნუკერის ტურნირი</span>
+          </div>
+        </div>
+        <h1 class="tv-title" id="tvTitle">DERBY Snooker Cup</h1>
+        <div class="tv-meta">
+          <span class="live-pill" id="livePill"><i></i>LIVE</span>
+          <b class="tv-clock" id="tvClock">00:00</b>
+        </div>
+      </header>
+
+      <main class="tv-main" id="tvMain">
+        <div class="tv-wait">
+          <img src="../assets/img/crest.png" alt="">
+          <p>იტვირთება</p>
+        </div>
+      </main>
+
+      <footer class="tv-foot">
+        <div class="ticker"><div class="ticker__track" id="ticker"></div></div>
+        <div class="tv-count" id="tvCount"></div>
+      </footer>
+
+      <div class="toast" id="toast"></div>
+
+      <div class="champ" id="champ" aria-live="polite">
+        <canvas class="champ__balls" id="champBalls"></canvas>
+        <div class="champ__inner">
+          <img src="../assets/img/crest.png" alt="">
+          <p class="champ__label">ჩემპიონი</p>
+          <h2 class="champ__name" id="champName"></h2>
+          <p class="champ__sub" id="champSub"></p>
+        </div>
+      </div>
+
+      <div class="conn" id="conn"><i></i><span>კავშირი</span></div>
+    </div>
+  </div>
+
+  <script src="../js/billiards.js"></script>
+  <script src="shared.js?v=3"></script>
+  <script src="tv.js?v=4"></script>
+</body>
+</html>
