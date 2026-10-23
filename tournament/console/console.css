@@ -235,3 +235,4 @@ tr.is-out td.actions { opacity: 1; }
 }
 .pc__p span { overflow-wrap: anywhere; text-overflow: clip; }
 @media (max-width: 860px) { .pc__p { font-size: 16px; padding: 10px; gap: 8px; } }
+.small-t { font-size: 11px; margin-top: 2px; }

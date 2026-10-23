@@ -16,7 +16,7 @@
   let token = store.get(TOKEN_KEY);
   let server = { version: -1, updatedAt: null, data: null }; // last copy the server confirmed
   let draft = null;                                          // what you are editing
-  let dirty = false, saving = false, conflict = null, viewers = 0, online = false;
+  let dirty = false, saving = false, conflict = null, viewers = 0, online = false, pendingSave = false;
   let filter = "all", breakOpen = false;
 
   /* ---------- small helpers ---------- */
@@ -47,6 +47,8 @@
     if (!Array.isArray(x.players)) x.players = [];
     if (!Array.isArray(x.log)) x.log = [];
     if (!DT.STATUS[x.status]) x.status = "registration";
+    if (x.bracket) DT.settle(x.bracket, DT.outSet(x));
+    DT.schedule(x, false);
     return x;
   }
 
@@ -123,28 +125,34 @@
     if (dirty && !first) { conflict = st; render(); return; }
     server = clone(st);
     draft = normalize(st.data);
-    dirty = false; conflict = null;
+    const scheduling = d => d && d.bracket ? JSON.stringify(d.bracket.rounds.flat().map(m => [m.id, m.live, m.table])) : "";
+    dirty = scheduling(st.data) !== scheduling(draft); conflict = null;
     render();
   }
 
   let autoT;
   function changed(rerender) {
+    DT.schedule(draft, false);
     dirty = true;
     if (rerender) render(); else paintStatus();
     if ($("#autosave").checked) { clearTimeout(autoT); autoT = setTimeout(() => save(), 700); }
   }
 
   async function save(force, okText) {
-    if (!draft || saving || !token) return;
+    if (!draft || !token) return;
+    if (saving) { pendingSave = dirty; return; }
     if (!dirty && !force) return;
+    DT.schedule(draft, false);
+    const sentData = clone(draft);
+    pendingSave = false;
     saving = true; paintStatus();
     try {
-      const r = await api("/api/state", { method: "POST", body: JSON.stringify({ data: draft, baseVersion: server.version, force: !!force }) });
+      const r = await api("/api/state", { method: "POST", body: JSON.stringify({ data: sentData, baseVersion: server.version, force: !!force }) });
       if (r.status === 200) {
-        server = { version: r.body.version, updatedAt: r.body.updatedAt, data: clone(draft) };
+        server = { version: r.body.version, updatedAt: r.body.updatedAt, data: sentData };
         store.set(BACKUP_KEY, JSON.stringify(server));
         remember(server);
-        dirty = false; conflict = null;
+        dirty = JSON.stringify(draft) !== JSON.stringify(sentData); conflict = null;
         msg(okText || `შენახულია · v${r.body.version} · TV განახლდა`, true);
       } else if (r.status === 401) kicked();
       else if (r.status === 409) { conflict = r.body.state; msg("სხვა ეკრანიდან უკვე შეინახა. აირჩიე რომელი ვერსია დარჩეს."); }
@@ -152,9 +160,10 @@
     } catch (e) { msg("შენახვა ვერ მოხერხდა: სერვერთან კავშირი არ არის"); }
     saving = false;
     render();
+    if (dirty && pendingSave && !conflict && token) { pendingSave = false; save(); }
   }
   // big actions (start, break, call...) go out immediately
-  function now(text, fn, okText) { fn(); log(text); dirty = true; render(); save(false, okText); }
+  function now(text, fn, okText) { fn(); log(text); dirty = true; render(); save(false, typeof okText === "function" ? okText() : okText); }
 
   function remember(s) {
     let h = []; try { h = JSON.parse(store.get(HIST_KEY) || "[]"); } catch (e) {}
@@ -173,6 +182,7 @@
     s.className = "sb-state" + (saving ? " saving" : dirty ? " dirty" : "");
     s.textContent = saving ? "saving..." : dirty ? "unsaved changes" : "synced";
     $("#saveBtn").disabled = !dirty || saving;
+    $$("[data-pwin]").forEach(button => { button.disabled = saving || !draft || draft.status !== "live"; });
     const chip = $("#sbChip");
     if (draft) { chip.className = "chip chip--" + draft.status; chip.textContent = DT.STATUS[draft.status].en; }
     const t = server.updatedAt ? tbilisi.format(new Date(server.updatedAt)) : "never";
@@ -212,6 +222,8 @@
   }
 
   /* ---------- play: the simple screen. set up in one step, then tap who won ---------- */
+  // matches go on the table(s) one after another; the queue runs itself
+  const tableCount = () => DT.tableCount(draft);
   function loc(n) { return n.endsWith("ი") ? n.slice(0, -1) + "ში" : n + "-ში"; }
   function nextText(br, r, i) {
     const nx = DT.nextInfo(br, r, i);
@@ -221,21 +233,43 @@
     return `გამარჯვებული გადის ${esc(loc(nx.round))} და ხვდება: ${who}`;
   }
   function playList() {
-    const br = draft.bracket, all = [];
-    br.rounds.forEach((row, r) => row.forEach((m, i) => { if (!DT.isBye(m)) all.push({ m, r, i }); }));
+    const all = [];
+    draft.bracket.rounds.forEach((row, r) => row.forEach((m, i) => { if (!DT.isBye(m)) all.push({ m, r, i }); }));
     return all;
   }
-  function card(x) {
-    const { m, r, i } = x, live = m.live && !m.winner;
-    const p = id => `<button class="pc__p" data-pwin="${m.id}" data-pid="${id}">${ballFor(id)}<span>${esc(pname(id))}</span></button>`;
-    return `<div class="pc${live ? " is-live" : ""}">
-      <div class="pc__top"><b>${esc(DT.roundName(draft.bracket.rounds[r].length, r))}</b>${live ? `<span class="pc__live">● LIVE</span>` : ""}
-        <input class="pc__tbl" data-table="${m.id}" value="${esc(m.table || "")}" placeholder="მაგიდა №" maxlength="4"></div>
+  // waiting matches in playing order: earlier rounds first, postponed ones last
+  function queue() {
+    return DT.waiting(draft).map(x => ({ m: x.mt, r: x.r, i: x.i }));
+  }
+  function onTable() { return playList().filter(x => x.m.live && !x.m.winner); }
+  // keep every table busy: put the next matches in the queue on free tables and call them on the TV
+  function fillTables(skipId) {
+    if (!draft.bracket || draft.status !== "live") return null;
+    const started = DT.schedule(draft, true, skipId);
+    if (started.length) announceMatches(started);
+    return started[0] || null;
+  }
+  function announceMatches(list) {
+    draft.announce = { on: true, kind: "call", text: list.map(m => `${pname(m.a)} vs ${pname(m.b)} · მაგიდა ${m.table}`).join(" / "), until: new Date(Date.now() + 90000).toISOString() };
+  }
+  function putOnTable(id) {
+    const result = DT.startMatch(draft, id);
+    if (result.error) {
+      msg(result.error === "not_live" ? "ჯერ დაიწყე ტურნირი ან დაასრულე შესვენება." : result.error === "table_busy" ? "მაგიდა დაკავებულია. ჯერ დაასრულე ან გადადე მიმდინარე მატჩი." : "ეს მატჩი ჯერ მზად არ არის.");
+      return null;
+    }
+    return result.match;
+  }
+  function liveCard(x) {
+    const { m, r, i } = x;
+    const p = id => `<button class="pc__p" data-pwin="${m.id}" data-pid="${id}" ${draft.status === "live" ? "" : "disabled"}>${ballFor(id)}<span>${esc(pname(id))}</span></button>`;
+    return `<div class="pc is-live">
+      <div class="pc__top"><b>${esc(DT.roundName(draft.bracket.rounds[r].length, r))}</b><span class="pc__live">● ${tableCount() > 1 ? "მაგიდა " + esc(m.table) : "მაგიდაზე"}</span></div>
       <div class="pc__q">ვინ მოიგო? დააჭირე სახელს</div>
       <div class="pc__pl">${p(m.a)}<span class="pc__vs">vs</span>${p(m.b)}</div>
       <div class="pc__foot">
         <input class="pc__sc" data-score="${m.id}" value="${esc(m.score || "")}" placeholder="ანგარიში, არასავალდებულო: 3-1" maxlength="9">
-        ${live ? `<button data-pstop="${m.id}">LIVE გამორთვა</button>` : `<button class="good" data-pstart="${m.id}">[ ▶ მაგიდაზე გამოძახება ]</button>`}
+        <button data-plater="${m.id}" title="მატჩი რიგის ბოლოში გადადის">გადადება</button>
       </div>
       <div class="pc__next">${nextText(draft.bracket, r, i)}</div>
     </div>`;
@@ -247,17 +281,18 @@
       return `<h2 class="vh">თამაში</h2><p class="lede">ახალი ტურნირი ერთ ნაბიჯში.</p>
       <section class="box wiz"><div class="box-head">SETUP :: ახალი ტურნირი</div><div class="box-body">
         <label for="wizN">1. რამდენი მოთამაშეა?</label>
-        <input id="wizN" class="wiz__n" type="number" min="2" max="128" value="${n >= 2 ? n : 16}" inputmode="numeric">
-        <label for="wizNames">2. სახელები (არასავალდებულო). თითო სახელი ცალკე ხაზზე. თუ ცარიელია, იქნება "მოთამაშე 1, 2, 3..." და მერე შეცვლი</label>
+        <input id="wizN" class="wiz__n" type="number" min="2" max="128" step="1" required value="${n >= 2 ? n : 16}" inputmode="numeric">
+        <label for="wizT">2. რამდენ მაგიდაზე თამაშობენ?</label>
+        <input id="wizT" class="wiz__n" type="number" min="1" max="20" step="1" required value="${tableCount()}" inputmode="numeric">
+        <label for="wizNames">3. სახელები (არასავალდებულო). თითო სახელი ცალკე ხაზზე. თუ ცარიელია, იქნება "მოთამაშე 1, 2, 3..." და მერე შეცვლი</label>
         <textarea id="wizNames" placeholder="გიორგი&#10;ლევანი&#10;ნიკა">${esc(draft.players.filter(p => !p.out).map(p => p.name).join("\n"))}</textarea>
         <label class="row" style="color:var(--ink);font-size:14px"><input type="checkbox" id="wizRandom" checked> შემთხვევითი წილისყრა</label>
         <button class="big good" data-act="wiz-go">[ ▶ ბადის შექმნა ]</button>
-        <p class="lede">დანარჩენს სისტემა თავად აკეთებს: ქმნის წყვილებს, გამარჯვებულს ავტომატურად გადაიყვანს შემდეგ წრეში. თუ რაოდენობა 8, 16 ან 32 არ არის, ზოგიერთი მოთამაშე პირდაპირ მე-2 წრეში გადავა.</p>
+        <p class="lede">დანარჩენს სისტემა თავად აკეთებს: მატჩები რიგში დგება, მაგიდა რომ გათავისუფლდება შემდეგი მატჩი ავტომატურად იწყება და TV-ზე იძახებს მოთამაშეებს.</p>
       </div></section>`;
     }
-    const all = playList(), champ = DT.champion(draft);
-    const live = all.filter(x => x.m.live && !x.m.winner && DT.ready(x.m));
-    const ready = all.filter(x => DT.ready(x.m) && !x.m.winner && !x.m.live);
+    const all = playList(), champ = DT.champion(draft), T = tableCount();
+    const live = onTable(), q = queue();
     const waiting = all.filter(x => !x.m.winner && !DT.ready(x.m) && (x.m.a || x.m.b));
     const done = all.filter(x => x.m.winner).sort((a, b) => (b.m.doneAt || "").localeCompare(a.m.doneAt || ""));
     const st = DT.stats(draft);
@@ -267,15 +302,20 @@
     else if (s === "break") top = `<button class="big good" data-act="resume">[ ▶ შესვენების დასრულება ]</button>`;
     else top = `<button class="big" data-act="reopen">[ ↺ თავიდან გახსნა ]</button><button class="big danger-btn" data-act="new-tournament">[ ახალი ტურნირი ]</button>`;
     return `<h2 class="vh">თამაში</h2>
-      <p class="lede"><span class="chip chip--${s}">${DT.STATUS[s].ka}</span> · მატჩი ${st.done}/${st.total} · ${st.active} მოთამაშე</p>
+      <p class="lede"><span class="chip chip--${s}">${DT.STATUS[s].ka}</span> · მატჩი ${st.done}/${st.total} · ${st.active} მოთამაშე · ${T} მაგიდა</p>
       <div class="row play-top">${top}</div>
+      ${s === "registration" ? `<div class="notice">დააჭირე დაწყებას: პირველი მატჩი ავტომატურად გავა მაგიდაზე და TV-ზე გამოიძახებს მოთამაშეებს.</div>` : ""}
       ${s === "break" ? `<div class="notice warn">შესვენება მიმდინარეობს. TV-ზე ჩანს "მალე გავაგრძელებთ".</div>` : ""}
+      ${server.data && server.data.bracket && server.data.bracket.rounds.flat().filter(m => m.live && !m.winner).length > T ? `<div class="notice warn">გამოყენებულია ${T} მაგიდის ლიმიტი. ზედმეტი LIVE მატჩები რიგში დაბრუნდა, ანგარიშები შენარჩუნებულია. <button data-act="save-schedule">შენახვა</button></div>` : ""}
       ${champ ? `<div class="champ-box"><small>ჩემპიონი</small><b>${esc(pname(champ))}</b></div>` : ""}
-      ${live.length ? `<h3 class="sub">ახლა თამაშობენ · ${live.length}</h3><div class="pcs">${live.map(card).join("")}</div>` : ""}
-      ${ready.length ? `<h3 class="sub">შემდეგი მატჩები · ${ready.length}</h3><div class="pcs">${ready.map(card).join("")}</div>` : ""}
-      ${!live.length && !ready.length && !champ ? `<div class="notice">ახლა სათამაშო მატჩი არ არის.</div>` : ""}
+      ${live.length ? `<h3 class="sub">${T > 1 ? `მაგიდებზე · ${live.length}/${T}` : "ახლა მაგიდაზე"}</h3><div class="pcs">${live.map(liveCard).join("")}</div>` : ""}
+      ${!live.length && !champ && s === "live" ? `<div class="notice">მაგიდა თავისუფალია. ${q.length ? `<button data-act="fill">შემდეგი მატჩის გაშვება</button>` : "რიგში მატჩი არ არის: ველოდებით შედეგებს."}</div>` : ""}
+      ${q.length ? `<h3 class="sub">რიგი · ${q.length}</h3><div class="table-wrap"><table><tbody>
+        ${q.map((x, k) => `<tr><td class="num">${k + 1}.</td><td>${ballFor(x.m.a)} ${esc(pname(x.m.a))} <span class="dim">vs</span> ${ballFor(x.m.b)} ${esc(pname(x.m.b))}<div class="dim small-t">${esc(DT.roundName(draft.bracket.rounds[x.r].length, x.r))}</div></td>
+          <td class="actions"><button data-pnow="${x.m.id}" ${s !== "live" || live.length >= T ? `disabled title="ჯერ გაათავისუფლე მაგიდა"` : ""}>ახლა</button></td></tr>`).join("")}
+      </tbody></table></div>` : ""}
       ${waiting.length ? `<h3 class="sub">ელოდებიან მეტოქეს · ${waiting.length}</h3><div class="table-wrap"><table><tbody>
-        ${waiting.map(x => { const k = x.m.a || x.m.b; return `<tr><td>${ballFor(k)} ${esc(pname(k))}</td><td class="dim">${esc(DT.roundName(draft.bracket.rounds[x.r].length, x.r))} · მეტოქე ჯერ თამაშობს</td></tr>`; }).join("")}
+        ${waiting.map(x => { const k = x.m.a || x.m.b; return `<tr><td>${ballFor(k)} ${esc(pname(k))}</td><td class="dim">${esc(DT.roundName(draft.bracket.rounds[x.r].length, x.r))}</td></tr>`; }).join("")}
       </tbody></table></div>` : ""}
       ${done.length ? `<h3 class="sub">დასრულდა · ${done.length}</h3><div class="table-wrap"><table><tbody>
         ${done.map(x => {
@@ -441,12 +481,12 @@
         const status = m.winner ? `<span class="status done">${m.wo ? "w/o" : "done"}</span>` : m.live ? `<span class="status live">● live</span>` : ready ? `<span class="status wait">ready</span>` : `<span class="status wait">waiting</span>`;
         html += `<div class="match${isDirty ? " is-dirty" : ""}" data-mid="${m.id}">
           <span class="mid">R${r + 1}·M${i + 1}</span>
-          <input class="tbl" data-table="${m.id}" value="${esc(m.table || "")}" placeholder="table" maxlength="4">
+          <span class="tbl">${esc(m.table || "auto")}</span>
           <div class="pa">${pick(m.a)}</div>
           <input class="sc" data-score="${m.id}" value="${esc(m.score || "")}" placeholder="0-0" maxlength="9" ${ready ? "" : "disabled"}>
           <div class="pb">${pick(m.b)}</div>
-          <button class="lv live-btn${m.live && !m.winner ? " on" : ""}" data-live="${m.id}" ${ready && !m.winner ? "" : "disabled"}>LIVE</button>
-          <button class="cl" data-call="${m.id}" ${ready && !m.winner ? "" : "disabled"}>call</button>
+          <button class="lv live-btn${m.live && !m.winner ? " on" : ""}" data-live="${m.id}" ${ready && !m.winner && draft.status === "live" && (m.live || onTable().length < tableCount()) ? "" : "disabled"}>LIVE</button>
+          <button class="cl" data-call="${m.id}" ${ready && !m.winner && draft.status === "live" && (m.live || onTable().length < tableCount()) ? "" : "disabled"}>call</button>
           ${status}
         </div>`;
       });
@@ -495,6 +535,7 @@
         <div><label for="sGame">game · felt colour</label><select id="sGame" data-field="game">
           ${[["snooker", "სნუკერი · მწვანე"], ["pool", "პული · ლურჯი"], ["russian", "რუსული · ზურმუხტისფერი"]].map(([v, t]) => `<option value="${v}" ${draft.game === v ? "selected" : ""}>${v} :: ${t}</option>`).join("")}
         </select></div>
+        <div><label for="sTables">მაგიდების რაოდენობა</label><input id="sTables" type="number" min="1" max="20" step="1" required inputmode="numeric" value="${tableCount()}" aria-describedby="tableHelp"><p id="tableHelp" class="lede">სნუკერისთვის 1 მაგიდა: ერთდროულად მხოლოდ ერთი მატჩი. რაოდენობის შემცირებისას ზედმეტი LIVE მატჩები რიგში ბრუნდება, შედეგები რჩება.</p></div>
         <div><label for="sStart">start_time · TV-ზე უკუთვლა რეგისტრაციისას</label><input id="sStart" type="datetime-local" data-field="startAt" value="${esc(draft.startAt || "")}"></div>
       </div>`;
   }
@@ -539,17 +580,19 @@
       const act = t.dataset.act;
       if (act === "take-server") { const st = conflict; conflict = null; dirty = false; server.version = -2; adopt(st, true); return; }
       if (act === "force-save") { save(true); return; }
+      if (act === "save-schedule") { save(); return; }
       if (t.dataset.filter) { filter = t.dataset.filter; render(); return; }
       // play screen
       if (act === "wiz-go") {
+        if (!$("#wizN").reportValidity() || !$("#wizT").reportValidity()) return;
         let n = Math.max(2, Math.min(128, parseInt($("#wizN").value, 10) || 0));
+        const tables = Math.max(1, Math.min(20, parseInt($("#wizT").value, 10) || 1));
         const names = $("#wizNames").value.split(/\r?\n/).map(x => x.replace(/^\s*\d+[\.\)]\s*/, "").trim()).filter(Boolean);
         if (names.length > n) n = Math.min(128, names.length);
-        if (n < 2) return msg("მინიმუმ 2 მოთამაშე");
         const list = [];
         for (let k = 0; k < n; k++) list.push({ id: DT.uid(), name: (names[k] || `მოთამაშე ${k + 1}`).slice(0, 40) });
-        now(`ახალი ტურნირი: ${n} მოთამაშე`, () => {
-          draft.players = list;
+        now(`ახალი ტურნირი: ${n} მოთამაშე, ${tables} მაგიდა`, () => {
+          draft.players = list; draft.tables = tables;
           draft.bracket = DT.makeBracket(list, $("#wizRandom").checked);
           draft.status = "registration"; draft.breakInfo = null; draft.display = "auto";
         }, `ბადე შეიქმნა: ${n} მოთამაშე · TV-ზე უკვე ჩანს`);
@@ -562,43 +605,48 @@
       }
       if (act === "new-tournament") {
         if (!confirm("ახალი ტურნირი? ეს ტურნირი წაიშლება (ისტორიაში დარჩება).")) return;
-        now("ახალი ტურნირი", () => { const keep = { title: draft.title, subtitle: draft.subtitle, game: draft.game }; draft = Object.assign(DT.emptyData(), keep); });
+        now("ახალი ტურნირი", () => { const keep = { title: draft.title, subtitle: draft.subtitle, game: draft.game, tables: draft.tables }; draft = Object.assign(DT.emptyData(), keep); });
         return;
       }
       if (act === "break-quick") { now("შესვენება", () => { draft.status = "break"; draft.breakInfo = { message: "", since: new Date().toISOString(), until: null }; }); return; }
+      if (act === "fill" || act === "fix-tables") { now("მაგიდები შეივსო", () => { fillTables(); }); return; }
       if (t.dataset.pwin) {
         const m = findMatch(t.dataset.pwin), id = t.dataset.pid;
-        if (!DT.ready(m) || m.winner === id) return;
+        if (saving || !DT.ready(m) || !m.live || m.winner || draft.status !== "live" || ![m.a, m.b].includes(id)) return;
         const pos = (() => { const R = draft.bracket.rounds; for (let r = 0; r < R.length; r++) { const i = R[r].indexOf(m); if (i >= 0) return { r, i }; } })();
         const nx = DT.nextInfo(draft.bracket, pos.r, pos.i);
+        let called = null;
         now(`${pname(id)} მოიგო${m.score ? " " + m.score : ""}`, () => {
           m.winner = id; m.wo = false; m.live = false; m.doneAt = new Date().toISOString();
           if (draft.status === "registration") draft.status = "live";
-          if (draft.announce && draft.announce.kind === "call" && draft.announce.on && draft.announce.text.includes(pname(id))) draft.announce.on = false;
+          if (draft.announce && draft.announce.kind === "call") draft.announce.on = false;
           settle();
-        }, nx.final ? `${pname(id)} ჩემპიონია!` : `${pname(id)} გადის ${loc(nx.round)} · TV განახლდა`);
+          called = fillTables();
+        }, () => (nx.final ? `${pname(id)} ჩემპიონია!` : `${pname(id)} გადის ${loc(nx.round)}`) + (called ? ` · შემდეგი მაგიდაზე: ${pname(called.a)} vs ${pname(called.b)}` : ""));
         return;
       }
-      if (t.dataset.pstart) {
-        const m = findMatch(t.dataset.pstart);
-        now(`გამოძახება: ${pname(m.a)} vs ${pname(m.b)}`, () => {
-          m.live = true;
-          if (draft.status === "registration") draft.status = "live";
-          draft.announce = { on: true, kind: "call", text: `${pname(m.a)} vs ${pname(m.b)}${m.table ? " · მაგიდა " + m.table : ""}`, until: new Date(Date.now() + 90000).toISOString() };
-        }, "მატჩი დაიწყო · TV-ზე გამოძახება ჩანს");
+      if (t.dataset.pnow) {
+        const m = putOnTable(t.dataset.pnow);
+        if (!m) return;
+        now(`მაგიდაზე: ${pname(m.a)} vs ${pname(m.b)}`, () => {
+          announceMatches([m]);
+        }, "მატჩი მაგიდაზეა · TV-ზე გამოძახება ჩანს");
         return;
       }
-      if (t.dataset.pstop) { const m = findMatch(t.dataset.pstop); now(`LIVE off: ${pname(m.a)} vs ${pname(m.b)}`, () => { m.live = false; }); return; }
+      if (t.dataset.plater) {
+        const m = findMatch(t.dataset.plater);
+        now(`გადაიდო: ${pname(m.a)} vs ${pname(m.b)}`, () => { m.live = false; m.table = ""; m.later = Date.now(); if (draft.announce && draft.announce.kind === "call") draft.announce.on = false; fillTables(m.id); }, "მატჩი რიგის ბოლოში გადავიდა");
+        return;
+      }
       if (t.dataset.pundo) {
         const m = findMatch(t.dataset.pundo);
         if (!confirm(`გავაუქმო შედეგი: ${pname(m.winner)} მოიგო?`)) return;
-        now(`შედეგი გაუქმდა: ${pname(m.a)} vs ${pname(m.b)}`, () => { m.winner = null; m.wo = false; m.doneAt = null; settle(); }, "შედეგი გაუქმდა");
+        now(`შედეგი გაუქმდა: ${pname(m.a)} vs ${pname(m.b)}`, () => { m.winner = null; m.wo = false; m.doneAt = null; settle(); fillTables(); }, "შედეგი გაუქმდა");
         return;
       }
 
-
       // state
-      if (act === "start") { now("ტურნირი დაიწყო", () => { draft.status = "live"; draft.breakInfo = null; if (draft.display === "players") draft.display = "auto"; }); return; }
+      if (act === "start") { now("ტურნირი დაიწყო", () => { draft.status = "live"; draft.breakInfo = null; if (draft.display === "players") draft.display = "auto"; fillTables(); }, "ტურნირი დაიწყო · პირველი მატჩი მაგიდაზეა"); return; }
       if (act === "break-open") { breakOpen = true; render(); return; }
       if (act === "break-close") { breakOpen = false; render(); return; }
       if (act === "break-go") {
@@ -615,13 +663,13 @@
         now("შესვენება +5 წთ", () => { const b = draft.breakInfo || {}; const base = Math.max(Date.now(), b.until ? new Date(b.until).getTime() : 0); b.until = new Date(base + 5 * 60000).toISOString(); draft.breakInfo = b; });
         return;
       }
-      if (act === "resume") { now("ტურნირი გაგრძელდა", () => { draft.status = "live"; draft.breakInfo = null; }); return; }
+      if (act === "resume") { now("ტურნირი გაგრძელდა", () => { draft.status = "live"; draft.breakInfo = null; fillTables(); }); return; }
       if (act === "finish") {
         if (!DT.champion(draft) && !confirm("ფინალი ჯერ არ დასრულებულა. მაინც დავასრულო ტურნირი?")) return;
         now("ტურნირი დასრულდა", () => { draft.status = "finished"; draft.breakInfo = null; if (draft.announce) draft.announce.on = false; draft.bracket && draft.bracket.rounds.flat().forEach(m => { m.live = false; }); });
         return;
       }
-      if (act === "reopen") { now("ტურნირი თავიდან გაიხსნა", () => { draft.status = "live"; }); return; }
+      if (act === "reopen") { now("ტურნირი თავიდან გაიხსნა", () => { draft.status = "live"; fillTables(); }); return; }
 
       // matches
       if (t.dataset.win) {
@@ -632,15 +680,21 @@
         m.doneAt = m.winner ? new Date().toISOString() : null;
         if (m.winner) m.live = false;
         settle();
+        if (m.winner) fillTables();
         log(m.winner ? `${pname(id)} მოიგო${m.score ? " " + m.score : ""}` : `შედეგი გაუქმდა: ${pname(m.a)} vs ${pname(m.b)}`);
         changed(true); return;
       }
-      if (t.dataset.live) { const m = findMatch(t.dataset.live); m.live = !m.live; log(`${m.live ? "LIVE" : "LIVE off"}: ${pname(m.a)} vs ${pname(m.b)}`); changed(true); return; }
+      if (t.dataset.live) {
+        const m = findMatch(t.dataset.live);
+        if (m.live) { m.live = false; m.table = ""; fillTables(m.id); }
+        else { if (!putOnTable(m.id)) return; announceMatches([m]); }
+        log(`${m.live ? "LIVE" : "LIVE off"}: ${pname(m.a)} vs ${pname(m.b)}`); changed(true); return;
+      }
       if (t.dataset.call) {
-        const m = findMatch(t.dataset.call);
+        const m = putOnTable(t.dataset.call);
+        if (!m) return;
         now(`გამოძახება: ${pname(m.a)} vs ${pname(m.b)}`, () => {
-          m.live = true;
-          draft.announce = { on: true, kind: "call", text: `${pname(m.a)} vs ${pname(m.b)}${m.table ? " · მაგიდა " + m.table : ""}`, until: new Date(Date.now() + 90000).toISOString() };
+          announceMatches([m]);
         });
         return;
       }
@@ -655,9 +709,9 @@
       if (act === "withdraw") {
         const p = draft.players.find(x => x.id === t.dataset.id);
         if (!confirm(`${p.name} მოიხსნება. მისი მეტოქე ავტომატურად გაიმარჯვებს (W/O). გავაგრძელო?`)) return;
-        p.out = true; settle(); log(`მოიხსნა: ${p.name}`); changed(true); return;
+        p.out = true; settle(); fillTables(); log(`მოიხსნა: ${p.name}`); changed(true); return;
       }
-      if (act === "restore") { const p = draft.players.find(x => x.id === t.dataset.id); p.out = false; settle(); log(`დაბრუნდა: ${p.name}`); changed(true); return; }
+      if (act === "restore") { const p = draft.players.find(x => x.id === t.dataset.id); p.out = false; settle(); fillTables(); log(`დაბრუნდა: ${p.name}`); changed(true); return; }
       if (act === "bulk-add" || act === "bulk-replace") {
         const names = $("#bulk").value.split(/\r?\n/).map(s => s.replace(/^\s*\d+[\.\)]\s*/, "").trim()).filter(Boolean).slice(0, 128);
         if (!names.length) return msg("სია ცარიელია");
@@ -722,6 +776,10 @@
     };
     view.onchange = e => {
       const t = e.target;
+      if (t.id === "sTables") {
+        if (!t.checkValidity() || !Number.isInteger(Number(t.value))) { t.reportValidity(); return; }
+        draft.tables = Number(t.value); fillTables(); changed(true); return;
+      }
       if (t.name === "disp") { draft.display = t.value; changed(); }
       if (t.dataset.field && t.tagName === "SELECT") { draft[t.dataset.field] = t.value; changed(); }
       if (t.dataset.swap) {

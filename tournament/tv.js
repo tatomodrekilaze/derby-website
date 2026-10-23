@@ -161,7 +161,7 @@
   function asideHTML() {
     const all = allMatches(), st = DT.stats(data), champ = DT.champion(data);
     const live = all.filter(x => x.mt.live && !x.mt.winner);
-    const ready = all.filter(x => DT.ready(x.mt) && !x.mt.winner && !x.mt.live);
+    const ready = DT.waiting(data).map(x => all.find(a => a.mt.id === x.mt.id));
     const done = all.filter(x => x.mt.winner).sort((a, b) => (b.mt.doneAt || "").localeCompare(a.mt.doneAt || ""));
     let top;
     if (champ) {
@@ -330,6 +330,8 @@
     version = st.version;
     data = Object.assign(DT.emptyData(), st.data || {});
     if (!Array.isArray(data.players)) data.players = [];
+    if (data.bracket) DT.settle(data.bracket, DT.outSet(data));
+    DT.schedule(data, false);
     render(isUpdate);
     celebrate();
   }

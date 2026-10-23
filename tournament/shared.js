@@ -60,8 +60,12 @@
         const mt = R[r][i];
         if (r > 0) {
           const fa = R[r - 1][i * 2], fb = R[r - 1][i * 2 + 1];
-          mt.a = fa.winner || null;
-          mt.b = fb.winner || null;
+          const a = fa.winner || null, b = fb.winner || null;
+          if (mt.a !== a || mt.b !== b) {
+            mt.winner = null; mt.score = ""; mt.wo = false; mt.doneAt = null;
+            mt.live = false; mt.table = "";
+          }
+          mt.a = a; mt.b = b;
         }
         if (mt.a === BYE && mt.b && mt.b !== BYE) { mt.winner = mt.b; }
         else if (mt.b === BYE && mt.a && mt.a !== BYE) { mt.winner = mt.a; }
@@ -83,6 +87,60 @@
 
   function isBye(mt) { return mt.a === BYE || mt.b === BYE; }
   function ready(mt) { return !!(mt.a && mt.b && !isBye(mt)); }
+
+  function tableCount(data) {
+    const n = Number(data && data.tables);
+    return Number.isFinite(n) ? Math.max(1, Math.min(20, Math.floor(n) || 1)) : 1;
+  }
+  function matches(data) {
+    const all = [];
+    if (data && data.bracket) data.bracket.rounds.forEach((row, r) => row.forEach((mt, i) => all.push({ mt, r, i })));
+    return all;
+  }
+  function waiting(data) {
+    const out = outSet(data);
+    return matches(data).filter(x => ready(x.mt) && !x.mt.winner && !x.mt.live && !out.has(x.mt.a) && !out.has(x.mt.b))
+      .sort((a, b) => (a.mt.later || 0) - (b.mt.later || 0) || a.r - b.r || a.i - b.i);
+  }
+  // Used by both screens. Mutates only the supplied local copy, never the server.
+  function schedule(data, fill, skipId) {
+    const count = data.tables = tableCount(data), used = new Set(), busy = new Set(), started = [];
+    const out = outSet(data); let adjusted = false;
+    const active = matches(data).filter(x => x.mt.live && !x.mt.winner);
+    for (const { mt } of active) {
+      if (!ready(mt) || out.has(mt.a) || out.has(mt.b) || busy.has(mt.a) || busy.has(mt.b) || used.size >= count || !["live", "break"].includes(data.status)) {
+        mt.live = false; mt.table = ""; adjusted = true; continue;
+      }
+      let t = Number(mt.table);
+      if (!Number.isInteger(t) || t < 1 || t > count || used.has(t)) { t = 1; while (used.has(t)) t++; adjusted = true; }
+      mt.table = String(t); used.add(t); busy.add(mt.a); busy.add(mt.b);
+    }
+    if (adjusted && data.announce && data.announce.kind === "call") data.announce.on = false;
+    if (fill && data.status === "live") {
+      for (const { mt } of waiting(data)) {
+        if (used.size >= count) break;
+        if (mt.id === skipId || busy.has(mt.a) || busy.has(mt.b)) continue;
+        let t = 1; while (used.has(t)) t++;
+        mt.live = true; mt.table = String(t); mt.later = 0;
+        used.add(t); busy.add(mt.a); busy.add(mt.b); started.push(mt);
+      }
+    }
+    return started;
+  }
+  function startMatch(data, id) {
+    schedule(data, false);
+    const mt = matches(data).map(x => x.mt).find(m => m.id === id), out = outSet(data);
+    if (!mt || !ready(mt) || mt.winner || out.has(mt.a) || out.has(mt.b)) return { error: "not_ready" };
+    if (data.status !== "live") return { error: "not_live" };
+    if (mt.live) return { match: mt };
+    const live = matches(data).map(x => x.mt).filter(m => m.live && !m.winner);
+    if (live.length >= tableCount(data)) return { error: "table_busy" };
+    if (live.some(m => m.a === mt.a || m.b === mt.a || m.a === mt.b || m.b === mt.b)) return { error: "player_busy" };
+    const used = new Set(live.map(m => Number(m.table)));
+    let t = 1; while (used.has(t)) t++;
+    mt.live = true; mt.table = String(t); mt.later = 0;
+    return { match: mt };
+  }
 
   // plain names people understand: round 1, round 2 ... then quarter, semi, final
   function roundName(count, r) {
@@ -140,6 +198,7 @@
       title: "DERBY Snooker Cup",
       subtitle: "სნუკერის ტურნირი",
       game: "snooker",
+      tables: 1,
       display: "auto",
       status: "registration",
       startAt: "",
@@ -151,5 +210,5 @@
     };
   }
 
-  window.DT = { API, BYE, STATUS, uid, makeBracket, settle, outSet, isBye, ready, roundName, nextInfo, champion, stats, activeAnnounce, emptyData };
+  window.DT = { API, BYE, STATUS, uid, makeBracket, settle, outSet, isBye, ready, tableCount, waiting, schedule, startMatch, roundName, nextInfo, champion, stats, activeAnnounce, emptyData };
 })();
