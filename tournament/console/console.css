@@ -162,3 +162,37 @@ code.k { padding: 2px 6px; border: 1px solid var(--rule); background: var(--bg);
   .statusbar { gap: 10px; padding: 8px 12px; }
   #sbMeta { display: none; }
 }
+
+/* tournament state */
+.chip { display: inline-block; padding: 1px 8px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; border: 1px solid var(--dim); color: var(--dim); }
+.chip:empty { display: none; }
+.chip--registration { border-color: var(--gold); color: var(--gold); }
+.chip--live { border-color: var(--bad); color: var(--bg); background: var(--bad); }
+.chip--break { border-color: var(--warn); color: var(--bg); background: var(--warn); }
+.chip--finished { border-color: var(--accent); color: var(--accent); }
+.ctl { margin-bottom: 14px; }
+.ctl .box-body { gap: 14px; }
+.steps { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; color: var(--dim); }
+.steps .step { padding: 2px 8px; border: 1px solid var(--rule); }
+.steps .step.on { border-color: var(--ink); color: var(--ink); font-weight: 600; }
+.steps .arrow { color: var(--rule); }
+button.big { padding: 12px 18px; font-size: 15px; font-weight: 600; }
+button.warnb { border-color: var(--warn); color: var(--warn); }
+button.warnb:hover:not(:disabled) { background: var(--warn); color: var(--bg); }
+.breakform { display: grid; gap: 8px; width: 100%; max-width: 560px; padding: 12px; border: 1px dashed var(--warn); }
+.row.nowrap { flex-wrap: nowrap; }
+select { width: 100%; padding: 6px 8px; }
+tr.is-out td { opacity: .5; }
+tr.is-out td.actions { opacity: 1; }
+.ok-t { color: var(--accent); font-size: 12px; }
+.bad-t { color: var(--bad); font-size: 12px; }
+.stat b small { font-size: 13px; color: var(--dim); font-weight: 400; }
+.pick.out span { text-decoration: line-through; }
+.match { grid-template-columns: 54px 70px minmax(0, 1fr) 84px minmax(0, 1fr) 64px 64px 70px; }
+.cl:not(:disabled) { border-color: var(--gold); color: var(--gold); }
+.cl:not(:disabled):hover { background: var(--gold); color: var(--bg); }
+@media (max-width: 860px) {
+  .match { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "id table" "a b" "score score" "live call" "status status"; }
+  .match .cl { grid-area: call; }
+  button.big { width: 100%; }
+}

@@ -5,11 +5,18 @@
   const API = (q.get("api") || (local ? "http://localhost:8787" : "https://derby-live.onrender.com")).replace(/\/$/, "");
 
   const BYE = "bye";
+  // registration -> live <-> break -> finished
+  const STATUS = {
+    registration: { ka: "რეგისტრაცია", en: "registration" },
+    live: { ka: "მიმდინარეობს", en: "live" },
+    break: { ka: "შესვენება", en: "break" },
+    finished: { ka: "დასრულდა", en: "finished" }
+  };
 
   function uid() { return Math.random().toString(36).slice(2, 9); }
   function nextPow2(n) { let s = 2; while (s < n) s *= 2; return s; }
 
-  // spreads byes evenly through the draw (1, 9, 5, 13 ... style)
+  // spreads byes evenly through the draw
   function bitReverseOrder(m) {
     const bits = Math.log2(m), out = [];
     for (let i = 0; i < m; i++) {
@@ -18,10 +25,9 @@
     }
     return out;
   }
-
   function shuffle(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
 
-  // knockout bracket for any number of players (2+), byes go to the first slots in bit-reversed order
+  // knockout bracket for any number of players (2+)
   function makeBracket(players, randomDraw) {
     const ids = (randomDraw ? shuffle(players) : players.slice()).map(p => p.id);
     const size = nextPow2(Math.max(2, ids.length));
@@ -45,8 +51,9 @@
     return br;
   }
 
-  // walk the draw: byes win automatically, winners move up, stale results downstream are cleared
-  function settle(br) {
+  // walk the draw: byes and withdrawals win automatically, winners move up, stale results downstream clear
+  function settle(br, outIds) {
+    const out = outIds instanceof Set ? outIds : new Set(outIds || []);
     const R = br.rounds;
     for (let r = 0; r < R.length; r++) {
       for (let i = 0; i < R[r].length; i++) {
@@ -56,24 +63,30 @@
           mt.a = fa.winner || null;
           mt.b = fb.winner || null;
         }
-        if (mt.a === BYE && mt.b && mt.b !== BYE) mt.winner = mt.b;
-        else if (mt.b === BYE && mt.a && mt.a !== BYE) mt.winner = mt.a;
-        else if (mt.winner && mt.winner !== mt.a && mt.winner !== mt.b) { mt.winner = null; mt.score = ""; }
+        if (mt.a === BYE && mt.b && mt.b !== BYE) { mt.winner = mt.b; }
+        else if (mt.b === BYE && mt.a && mt.a !== BYE) { mt.winner = mt.a; }
+        else if (mt.a && mt.b) {
+          const aOut = out.has(mt.a), bOut = out.has(mt.b);
+          if (!mt.winner || mt.wo) {
+            if (aOut && !bOut) { mt.winner = mt.b; mt.wo = true; mt.score = "W/O"; }
+            else if (bOut && !aOut) { mt.winner = mt.a; mt.wo = true; mt.score = "W/O"; }
+            else if (mt.wo) { mt.winner = null; mt.wo = false; mt.score = ""; mt.doneAt = null; }
+          }
+        }
+        if (mt.winner && mt.winner !== mt.a && mt.winner !== mt.b) { mt.winner = null; mt.score = ""; mt.wo = false; mt.doneAt = null; }
         if (mt.winner) mt.live = false;
       }
     }
     return br;
   }
+  function outSet(data) { return new Set(((data && data.players) || []).filter(p => p.out).map(p => p.id)); }
 
   function isBye(mt) { return mt.a === BYE || mt.b === BYE; }
-  function ready(mt) { return mt.a && mt.b && !isBye(mt); }
+  function ready(mt) { return !!(mt.a && mt.b && !isBye(mt)); }
 
   function roundName(count, lang) {
     const L = lang || "ka";
-    const names = {
-      ka: { 1: "ფინალი", 2: "ნახევარფინალი", 4: "მეოთხედფინალი" },
-      en: { 1: "Final", 2: "Semi-finals", 4: "Quarter-finals" }
-    };
+    const names = { ka: { 1: "ფინალი", 2: "ნახევარფინალი", 4: "მეოთხედფინალი" }, en: { 1: "Final", 2: "Semi-finals", 4: "Quarter-finals" } };
     if (names[L][count]) return names[L][count];
     return L === "ka" ? `1/${count} ფინალი` : `Round of ${count * 2}`;
   }
@@ -85,18 +98,27 @@
   }
 
   function stats(data) {
-    const out = { players: 0, total: 0, done: 0, live: 0, round: null };
+    const out = { players: 0, active: 0, total: 0, done: 0, live: 0, round: null };
     if (!data) return out;
     out.players = (data.players || []).length;
+    out.active = (data.players || []).filter(p => !p.out).length;
     const br = data.bracket; if (!br) return out;
     br.rounds.forEach((row, r) => row.forEach(mt => {
       if (isBye(mt)) return;
       out.total++;
       if (mt.winner) out.done++;
-      if (mt.live) out.live++;
+      if (mt.live && !mt.winner) out.live++;
       if (!mt.winner && out.round === null && (mt.a || mt.b)) out.round = r;
     }));
     return out;
+  }
+
+  // the announcement currently meant for the screen, or null
+  function activeAnnounce(data, now) {
+    const a = data && data.announce;
+    if (!a || !a.on || !a.text) return null;
+    if (a.until && new Date(a.until).getTime() < (now || Date.now())) return null;
+    return a;
   }
 
   function emptyData() {
@@ -105,10 +127,15 @@
       subtitle: "სნუკერის ტურნირი",
       game: "snooker",
       display: "auto",
+      status: "registration",
+      startAt: "",
+      breakInfo: null,
+      announce: null,
       players: [],
-      bracket: null
+      bracket: null,
+      log: []
     };
   }
 
-  window.DT = { API, BYE, uid, makeBracket, settle, isBye, ready, roundName, champion, stats, emptyData };
+  window.DT = { API, BYE, STATUS, uid, makeBracket, settle, outSet, isBye, ready, roundName, champion, stats, activeAnnounce, emptyData };
 })();

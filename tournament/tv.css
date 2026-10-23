@@ -225,3 +225,54 @@ html.portrait .champ__name { font-size: 64px; }
 html.portrait .champ__label { font-size: 18px; }
 html.portrait .champ__inner img { width: 90px; }
 html.portrait .champ__sub { font-size: 16px; }
+
+/* ---------- tournament state ---------- */
+.live-pill.st-registration i { background: var(--gold); box-shadow: 0 0 0 4px rgba(226, 189, 115, .2); animation: none; }
+.live-pill.st-break i { background: #ffb347; box-shadow: 0 0 0 4px rgba(255, 179, 71, .2), 0 0 18px #ffb347; }
+.live-pill.st-finished i { background: var(--gold); box-shadow: 0 0 0 4px rgba(226, 189, 115, .2); animation: none; }
+.live-pill.st-registration, .live-pill.st-finished { letter-spacing: .08em; }
+
+/* break: the whole screen pauses */
+.brk { position: absolute; inset: 0; z-index: 15; display: grid; place-content: center; justify-items: center; text-align: center; opacity: 0; visibility: hidden; transition: opacity .9s var(--ease), visibility .9s;
+  background: radial-gradient(ellipse 60% 55% at 50% 42%, rgba(19, 96, 58, .55), rgba(2, 8, 5, .96) 75%); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.brk.is-on { opacity: 1; visibility: visible; }
+.brk img { width: 120px; filter: drop-shadow(0 20px 40px rgba(0, 0, 0, .7)); }
+.brk__k { margin: 26px 0 0; font-weight: 700; font-size: 34px; letter-spacing: .4em; padding-left: .4em; color: #ffb347; text-transform: uppercase; }
+.brk__t { display: block; margin-top: 4px; font-weight: 800; font-size: 260px; line-height: .9; color: var(--white); font-variant-numeric: tabular-nums; text-shadow: 0 30px 70px rgba(0, 0, 0, .6); }
+.brk__m { margin: 22px 0 0; font-weight: 700; font-size: 42px; max-width: 1300px; }
+.brk__u { margin-top: 14px; font-size: 26px; font-weight: 600; color: var(--soft); letter-spacing: .06em; }
+.brk.is-on > * { animation: rise 1.1s var(--ease) both; }
+.brk.is-on .brk__t { animation-delay: .1s; }
+.brk.is-on .brk__m { animation-delay: .2s; }
+
+/* announcement strip */
+.ann { position: absolute; z-index: 6; left: 64px; bottom: 54px; max-width: 1240px; display: flex; align-items: stretch; transform: translateY(calc(100% + 80px)); visibility: hidden; transition: transform .8s var(--ease), visibility 0s .8s; box-shadow: 0 30px 60px -20px rgba(0, 0, 0, .85); }
+.ann.is-on { transform: none; visibility: visible; transition: transform .8s var(--ease); }
+.ann__k { display: flex; align-items: center; padding: 0 22px; background: var(--white); color: #0b2216; font-weight: 800; font-size: 24px; letter-spacing: .12em; text-transform: uppercase; white-space: nowrap; }
+.ann__v { display: flex; align-items: center; padding: 18px 30px; background: rgba(4, 12, 8, .94); font-weight: 800; font-size: 40px; line-height: 1.1; }
+.ann.is-call .ann__k { background: var(--red); color: #fff; animation: callFlash 1s steps(2) infinite; }
+@keyframes callFlash { 50% { background: #a3101f; } }
+.stage.has-ann .toast { bottom: 170px; }
+
+/* withdrawn players */
+.pl-row.is-out span { color: var(--faint); text-decoration: line-through; text-decoration-color: rgba(251, 247, 238, .3); }
+.pl-row.is-out::after { content: "W/O"; font-weight: 700; font-size: 18px; color: var(--faint); letter-spacing: .1em; }
+.r.is-wo .r__s { font-size: calc(var(--fs) * .7); letter-spacing: .06em; }
+
+/* start countdown */
+.tv-wait .cd { margin-top: 26px; font-weight: 800; font-size: 120px; line-height: .9; font-variant-numeric: tabular-nums; }
+.lineup__side .cd { margin-top: 26px; font-size: 24px; font-weight: 600; color: var(--soft); }
+.lineup__side .cd b { display: inline; font-size: 44px; margin: 0; line-height: 1; color: var(--gold-hi); text-shadow: none; }
+
+html.portrait .brk { position: fixed; }
+html.portrait .brk__t { font-size: 96px; }
+html.portrait .brk__k { font-size: 18px; }
+html.portrait .brk__m { font-size: 20px; padding: 0 16px; }
+html.portrait .ann { position: fixed; left: 0; right: 0; bottom: 0; max-width: none; }
+html.portrait .ann__k { font-size: 13px; padding: 0 12px; }
+html.portrait .ann__v { font-size: 18px; padding: 12px 14px; flex: 1; }
+html.portrait .tv-wait .cd { font-size: 54px; }
+.tv-main { transition: bottom .6s var(--ease); }
+.stage.has-ann .tv-main { bottom: 148px; }
+.ann { bottom: 40px; }
+.r.is-out .r__n { color: var(--faint); text-decoration: line-through; text-decoration-color: rgba(251, 247, 238, .35); }

@@ -1,10 +1,13 @@
 /* DERBY tournament: live TV display (broadcast style) */
 (function () {
   const $ = s => document.querySelector(s);
+  const $$ = s => Array.from(document.querySelectorAll(s));
+  const pad = n => String(n).padStart(2, "0");
   const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const COLORS = ["#f4c22b", "#1f4fbf", "#d8262e", "#5b2a91", "#f2741c", "#11804a", "#7c1e26", "#141519"];
   const stage = $("#stage"), main = $("#tvMain");
-  const MAIN_H = 860, HEAD_H = 40, ASIDE_W = 470, GAP = 56;
+  const HEAD_H = 40;
+  const mainH = () => (stage.classList.contains("has-ann") ? 860 - 104 : 860); // room for the announcement strip
   let scale = 1, data = null, prevWinners = null, prevChamp = undefined, mode = "";
 
   /* ---------- fit the 1920x1080 stage to any screen ---------- */
@@ -48,16 +51,26 @@
     $("#tvTitle").textContent = data.title || "DERBY";
     $("#tvSub").textContent = data.subtitle || "";
     document.title = `DERBY · ${data.title || "ტურნირი"} LIVE`;
-    const br = data.bracket;
-    const want = data.display === "players" ? "players" : br ? "bracket" : players().length ? "players" : "wait";
+    const br = data.bracket, status = DT.STATUS[data.status] ? data.status : "registration";
+    const pill = $("#statePill");
+    pill.className = "live-pill st-" + status;
+    pill.querySelector("span").textContent = status === "live" ? "LIVE" : DT.STATUS[status].ka;
+    const want = data.display === "players" ? (players().length ? "players" : "wait")
+      : data.display === "bracket" && br ? "bracket"
+      : status === "registration" ? (players().length ? "players" : br ? "bracket" : "wait")
+      : br ? "bracket" : players().length ? "players" : "wait";
     if (want === "players") renderLineup(isUpdate && mode === "players");
     else if (want === "bracket") renderBoard();
     else renderWait();
     mode = want;
+    paintOverlays();
   }
 
   function renderWait() {
-    main.innerHTML = `<div class="tv-wait"><img src="../assets/img/crest.png" alt=""><p>ტურნირი მალე დაიწყება</p><small>რეგისტრაცია მიმდინარეობს</small></div>`;
+    const at = startDate();
+    main.innerHTML = `<div class="tv-wait"><img src="../assets/img/crest.png" alt=""><p>ტურნირი მალე დაიწყება</p>
+      <small>${at ? "დაწყება " + fmt.format(at) + "-ზე" : "რეგისტრაცია მიმდინარეობს"}</small>
+      ${at ? `<div class="cd" data-at="${at.toISOString()}" data-kind="big"></div>` : ""}</div>`;
   }
 
   function renderLineup(keep) {
@@ -70,12 +83,13 @@
       <section class="lineup">
         <div class="lineup__side">
           <small>რეგისტრაცია</small>
-          <b>${n}</b>
+          <b>${list.filter(p => !p.out).length}</b>
           <span>მოთამაშე</span>
           <p>${esc(data.title || "")}${data.subtitle ? "<br>" + esc(data.subtitle) : ""}</p>
+          ${startDate() && data.status === "registration" ? `<div class="cd" data-at="${startDate().toISOString()}" data-kind="line"></div>` : ""}
         </div>
         <div class="lineup__list" style="--rows:${rows};--ph:${ph}px;--pf:${pf}px">
-          ${list.map((p, i) => `<div class="pl-row" style="--i:${keep ? 0 : i}"><em>${i + 1}</em>${dot(p.id)}<span>${esc(p.name)}</span></div>`).join("")}
+          ${list.map((p, i) => `<div class="pl-row${p.out ? " is-out" : ""}" style="--i:${keep ? 0 : i}"><em>${i + 1}</em>${dot(p.id)}<span>${esc(p.name)}</span></div>`).join("")}
         </div>
       </section>`;
   }
@@ -87,7 +101,7 @@
 
   function bracketHTML() {
     const R = data.bracket.rounds, U = R[0].length, st = DT.stats(data);
-    const unit = (MAIN_H - HEAD_H) / U;
+    const unit = (mainH() - HEAD_H) / U;
     // early rounds hold real names, later ones mostly empty slots: give the early ones more room
     const cols = R.map((_, r) => (r < 2 && R.length > 3 ? "1.12fr" : "1fr")).join(" ");
     let html = `<div class="bracket" id="bracket" style="grid-template-columns:${cols}">`;
@@ -106,8 +120,10 @@
         const fs = Math.round(Math.max(13, Math.min(25, rh * .56)));
         const side = (id, s) => {
           if (!id) return `<div class="r is-tbd"><i class="dot dot--none"></i><span class="r__n">ელოდება</span></div>`;
-          const cls = mt.winner ? (mt.winner === id ? " is-win" : " is-lose") : "";
-          return `<div class="r${cls}">${dot(id)}<span class="r__n">${esc(name(id))}</span><b class="r__s">${esc(s)}</b></div>`;
+          const out = (byId(id) || {}).out;
+          const cls = (mt.winner ? (mt.winner === id ? " is-win" : " is-lose") : "") + (mt.wo ? " is-wo" : "") + (out && !mt.winner ? " is-out" : "");
+          const sc = mt.wo ? (mt.winner === id ? "" : "W/O") : s;
+          return `<div class="r${cls}">${dot(id)}<span class="r__n">${esc(name(id))}</span><b class="r__s">${esc(sc)}</b></div>`;
         };
         html += `<div class="m${mt.live && !mt.winner ? " is-live" : ""}${mt.winner ? " is-done" : ""}${fin ? " is-final" : ""}"
           data-id="${mt.id}" data-r="${r}" data-i="${i}" style="grid-row:${i * span + 1} / span ${span};--rh:${rh}px;--fs:${fs}px">
@@ -184,6 +200,46 @@
     }
     svg.innerHTML = d;
   }
+
+  /* ---------- break screen, announcements, countdowns (ticks every second) ---------- */
+  function startDate() {
+    if (!data || !data.startAt) return null;
+    const d = new Date(data.startAt);
+    return isNaN(d) || d.getTime() < Date.now() - 60000 ? null : d;
+  }
+  function clockText(ms) {
+    const t = Math.max(0, Math.floor(ms / 1000)), h = Math.floor(t / 3600), m = Math.floor(t / 60) % 60, s = t % 60;
+    return h ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+  }
+  function paintOverlays() {
+    if (!data) return;
+    const brkOn = data.status === "break";
+    $("#brk").classList.toggle("is-on", brkOn);
+    if (brkOn) {
+      const b = data.breakInfo || {}, until = b.until ? new Date(b.until) : null;
+      $("#brkM").textContent = b.message || "";
+      if (until) {
+        const left = until - Date.now();
+        $("#brkT").textContent = clockText(left);
+        $("#brkU").textContent = left > 0 ? `გაგრძელება ${fmt.format(until)}-ზე` : "მალე გავაგრძელებთ";
+      } else { $("#brkT").textContent = "DERBY"; $("#brkU").textContent = ""; }
+    }
+    const a = brkOn ? null : DT.activeAnnounce(data);
+    const ann = $("#ann");
+    ann.classList.toggle("is-on", !!a);
+    ann.classList.toggle("is-call", !!(a && a.kind === "call"));
+    if (stage.classList.contains("has-ann") !== !!a) {
+      stage.classList.toggle("has-ann", !!a);
+      if (mode === "bracket") renderBoard(); // bracket makes room for the strip, then takes it back
+    }
+    if (a) { $("#annK").textContent = a.kind === "call" ? "გამოძახება" : "განცხადება"; $("#annV").textContent = a.text; }
+    $$(".cd[data-at]").forEach(el => {
+      const at = new Date(el.dataset.at), left = at - Date.now();
+      if (el.dataset.kind === "big") el.textContent = left > 0 ? clockText(left) : "";
+      else el.innerHTML = left > 0 ? `დაწყება ${fmt.format(at)}-ზე · <b>${clockText(left)}</b>` : "";
+    });
+  }
+  setInterval(paintOverlays, 1000);
 
   /* ---------- what changed since the last save ---------- */
   function winnersMap() {

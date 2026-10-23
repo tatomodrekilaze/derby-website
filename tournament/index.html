@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Noto+Sans+Georgian:wdth,wght@62.5..100,500..900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="tv.css?v=8">
+  <link rel="stylesheet" href="tv.css?v=11">
 </head>
 <body>
   <div class="viewport" id="viewport">
@@ -24,7 +24,7 @@
           <div class="tv-sub" id="tvSub">სნუკერის ტურნირი</div>
         </div>
         <div class="tv-meta">
-          <span class="live-pill"><i></i>LIVE</span>
+          <span class="live-pill" id="statePill"><i></i><span>LIVE</span></span>
           <b class="tv-clock" id="tvClock">00:00</b>
         </div>
       </header>
@@ -32,6 +32,16 @@
       <main class="tv-main" id="tvMain">
         <div class="tv-wait"><img src="../assets/img/crest.png" alt=""><p>იტვირთება</p></div>
       </main>
+
+      <div class="ann" id="ann"><span class="ann__k" id="annK"></span><span class="ann__v" id="annV"></span></div>
+
+      <div class="brk" id="brk">
+        <img src="../assets/img/crest.png" alt="">
+        <p class="brk__k">შესვენება</p>
+        <b class="brk__t" id="brkT">10:00</b>
+        <p class="brk__m" id="brkM"></p>
+        <small class="brk__u" id="brkU"></small>
+      </div>
 
       <div class="toast" id="toast"><span class="toast__k" id="toastK"></span><span class="toast__v" id="toastV"></span></div>
 
@@ -50,7 +60,7 @@
   </div>
 
   <script src="../js/billiards.js"></script>
-  <script src="shared.js?v=8"></script>
-  <script src="tv.js?v=8"></script>
+  <script src="shared.js?v=9"></script>
+  <script src="tv.js?v=11"></script>
 </body>
 </html>
