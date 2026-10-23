@@ -618,6 +618,21 @@
     });
   }
 
+  /* ---------- tournament: the nav link gets a red pulse while a tournament is running ---------- */
+  (function tournamentDot() {
+    const ctl = window.AbortController ? new AbortController() : null;
+    if (ctl) setTimeout(() => ctl.abort(), 8000);
+    fetch("https://derby-live.onrender.com/api/state", { cache: "no-store", signal: ctl && ctl.signal })
+      .then(r => r.json())
+      .then(st => {
+        const d = st && st.data;
+        const on = !!(d && Array.isArray(d.players) && d.players.length);
+        $$(".tour-dot").forEach(el => { el.hidden = !on; });
+        $$(".nav__tour").forEach(el => el.classList.toggle("is-live-tour", on));
+      })
+      .catch(() => {});
+  })();
+
   /* ---------- boot ---------- */
   const fontsReady = Promise.race([document.fonts ? document.fonts.ready : Promise.resolve(), new Promise(r => setTimeout(r, 2500))]);
   // always start at the top; browsers like to restore the old scroll on reload
