@@ -8,7 +8,7 @@
   <title>DERBY · Console</title>
   <link rel="icon" type="image/png" href="../../assets/img/favicon.png">
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Noto+Sans+Georgian:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="console.css?v=6">
+  <link rel="stylesheet" href="console.css?v=10">
 </head>
 <body>
   <header class="bar">
@@ -33,18 +33,19 @@
 
   <div id="app" class="shell" hidden>
     <nav id="side" class="side" aria-label="კონსოლი">
-      <a href="#/overview" data-view="overview">overview</a>
-      <p class="side-h">tournament</p>
-      <a href="#/players" data-view="players">players</a>
-      <a href="#/draw" data-view="draw">draw</a>
-      <a href="#/matches" data-view="matches">matches</a>
-      <p class="side-h">screen</p>
-      <a href="#/announce" data-view="announce">announce</a>
-      <a href="#/display" data-view="display">display</a>
-      <a href="#/settings" data-view="settings">settings</a>
-      <p class="side-h">admin</p>
-      <a href="#/history" data-view="history">history</a>
-      <a href="#/danger" data-view="danger" class="bad">danger_zone</a>
+      <a href="#/play" data-view="play" class="play-link">▶ თამაში</a>
+      <p class="side-h">ტურნირი</p>
+      <a href="#/overview" data-view="overview">მართვა</a>
+      <a href="#/players" data-view="players">მოთამაშეები</a>
+      <a href="#/draw" data-view="draw">ბადე</a>
+      <a href="#/matches" data-view="matches">ყველა მატჩი</a>
+      <p class="side-h">ეკრანი</p>
+      <a href="#/announce" data-view="announce">განცხადება</a>
+      <a href="#/display" data-view="display">ტელევიზორი</a>
+      <a href="#/settings" data-view="settings">პარამეტრები</a>
+      <p class="side-h">ადმინი</p>
+      <a href="#/history" data-view="history">ისტორია</a>
+      <a href="#/danger" data-view="danger" class="bad">საშიში ზონა</a>
       <p class="side-foot dim" id="clock"></p>
     </nav>
     <main id="view" class="view" aria-live="polite"></main>
@@ -60,7 +61,7 @@
     <button class="primary" id="saveBtn" disabled>[ შენახვა ] <span class="dim-k">ctrl+s</span></button>
   </footer>
 
-  <script src="../shared.js?v=6"></script>
-  <script src="console.js?v=8"></script>
+  <script src="../shared.js?v=9"></script>
+  <script src="console.js?v=9"></script>
 </body>
 </html>

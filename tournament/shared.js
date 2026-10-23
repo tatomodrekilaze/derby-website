@@ -84,11 +84,25 @@
   function isBye(mt) { return mt.a === BYE || mt.b === BYE; }
   function ready(mt) { return !!(mt.a && mt.b && !isBye(mt)); }
 
-  function roundName(count, lang) {
-    const L = lang || "ka";
-    const names = { ka: { 1: "ფინალი", 2: "ნახევარფინალი", 4: "მეოთხედფინალი" }, en: { 1: "Final", 2: "Semi-finals", 4: "Quarter-finals" } };
-    if (names[L][count]) return names[L][count];
-    return L === "ka" ? `1/${count} ფინალი` : `Round of ${count * 2}`;
+  // plain names people understand: round 1, round 2 ... then quarter, semi, final
+  function roundName(count, r) {
+    if (count === 1) return "ფინალი";
+    if (count === 2) return "ნახევარფინალი";
+    if (count === 4) return "მეოთხედფინალი";
+    return `წრე ${(r || 0) + 1}`;
+  }
+
+  // where the winner of match (r, i) goes next and who could be waiting there
+  function nextInfo(br, r, i) {
+    const R = br.rounds;
+    if (r >= R.length - 1) return { final: true };
+    const sib = R[r][i ^ 1];
+    let opp = null;
+    if (sib.winner) opp = { id: sib.winner };
+    else if (sib.a === BYE || sib.b === BYE) opp = { id: sib.a === BYE ? sib.b : sib.a };
+    else if (sib.a && sib.b) opp = { pair: [sib.a, sib.b] };
+    else opp = { later: true };
+    return { final: false, round: roundName(R[r + 1].length, r + 1), opp };
   }
 
   function champion(data) {
@@ -137,5 +151,5 @@
     };
   }
 
-  window.DT = { API, BYE, STATUS, uid, makeBracket, settle, outSet, isBye, ready, roundName, champion, stats, activeAnnounce, emptyData };
+  window.DT = { API, BYE, STATUS, uid, makeBracket, settle, outSet, isBye, ready, roundName, nextInfo, champion, stats, activeAnnounce, emptyData };
 })();

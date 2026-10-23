@@ -16,7 +16,7 @@ html[data-game="pool"] { --felt-1: #1a6fbf; --felt-2: #0e4580; --felt-3: #051a33
 html[data-game="russian"] { --felt-1: #128060; --felt-2: #0a4d3a; --felt-3: #041a14; }
 
 * { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; background: #020604; color: var(--white); font-family: var(--fc); font-stretch: 78%; overflow: hidden; -webkit-font-smoothing: antialiased; }
+html, body { margin: 0; height: 100%; background: #020604; color: var(--white); font-family: var(--fc); font-stretch: 78%; font-variation-settings: "wdth" 72; overflow: hidden; -webkit-font-smoothing: antialiased; }
 body.idle, body.idle * { cursor: none !important; }
 
 .viewport { position: fixed; inset: 0; overflow: hidden; background: #020604; }

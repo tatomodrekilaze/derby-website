@@ -196,3 +196,42 @@ tr.is-out td.actions { opacity: 1; }
   .match .cl { grid-area: call; }
   button.big { width: 100%; }
 }
+
+/* ---------- play: the simple screen ---------- */
+.side a.play-link { color: var(--accent); font-weight: 600; }
+.play-top { margin-bottom: 16px; }
+.wiz { max-width: 640px; }
+.wiz .box-body { gap: 10px; }
+.wiz label { font-size: 13px; color: var(--ink); }
+.wiz__n { font-size: 36px; font-weight: 600; padding: 10px 14px; max-width: 200px; }
+.wiz textarea { min-height: 140px; }
+.pcs { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 12px; }
+.pc { display: grid; gap: 10px; padding: 14px; border: 1px solid var(--line); background: var(--panel); }
+.pc.is-live { border-color: var(--bad); box-shadow: inset 4px 0 0 var(--bad); }
+.pc__top { display: flex; align-items: center; gap: 10px; }
+.pc__top b { font-size: 13px; }
+.pc__live { color: var(--bad); font-size: 12px; font-weight: 600; }
+.pc__tbl { margin-left: auto; width: 110px; padding: 5px 8px; text-align: center; }
+.pc__q { font-size: 12px; color: var(--dim); }
+.pc__pl { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 8px; align-items: stretch; }
+.pc__p { display: flex; align-items: center; gap: 10px; min-height: 64px; padding: 10px 12px; text-align: left; font-size: 17px; font-weight: 600; border-color: var(--line); }
+.pc__p span { overflow: hidden; text-overflow: ellipsis; white-space: normal; line-height: 1.25; }
+.pc__p:hover:not(:disabled) { background: rgba(51, 204, 102, .12); border-color: var(--accent); color: var(--accent); }
+.pc__p .b { width: 26px; height: 26px; font-size: 11px; flex: none; }
+.pc__vs { align-self: center; font-size: 12px; color: var(--dim); }
+.pc__foot { display: flex; gap: 8px; }
+.pc__sc { flex: 1; padding: 7px 10px; }
+.pc__next { font-size: 12px; color: var(--dim); padding-top: 8px; border-top: 1px solid var(--rule); }
+.pc__next b { color: var(--ink); font-weight: 600; }
+.champ-box { margin: 6px 0 16px; padding: 18px; border: 1px solid var(--gold); }
+.champ-box small { display: block; font-size: 12px; color: var(--gold); letter-spacing: .1em; }
+.champ-box b { display: block; font-size: 30px; margin-top: 4px; }
+@media (max-width: 860px) {
+  .pcs { grid-template-columns: 1fr; }
+  .pc__p { min-height: 72px; font-size: 18px; }
+  .pc__foot { flex-direction: column; }
+  .play-top { display: grid; grid-template-columns: 1fr; }
+  .play-top a, .play-top a button { width: 100%; }
+}
+.pc__p span { overflow-wrap: anywhere; text-overflow: clip; }
+@media (max-width: 860px) { .pc__p { font-size: 16px; padding: 10px; gap: 8px; } }

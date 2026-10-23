@@ -154,7 +154,7 @@
     render();
   }
   // big actions (start, break, call...) go out immediately
-  function now(text, fn) { fn(); log(text); dirty = true; render(); save(); }
+  function now(text, fn, okText) { fn(); log(text); dirty = true; render(); save(false, okText); }
 
   function remember(s) {
     let h = []; try { h = JSON.parse(store.get(HIST_KEY) || "[]"); } catch (e) {}
@@ -164,7 +164,7 @@
 
   $("#saveBtn").addEventListener("click", () => save());
   addEventListener("keydown", e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") { e.preventDefault(); save(); } });
-  $("#autosave").checked = store.get(AUTO_KEY) === "1";
+  $("#autosave").checked = store.get(AUTO_KEY) !== "0"; // on unless switched off
   $("#autosave").addEventListener("change", e => { store.set(AUTO_KEY, e.target.checked ? "1" : "0"); if (e.target.checked && dirty) save(); });
   addEventListener("beforeunload", e => { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
 
@@ -189,8 +189,8 @@
   }
 
   /* ---------- router ---------- */
-  const views = { overview, players, draw, matches, announce, display, settings, history, danger };
-  function current() { const v = location.hash.replace(/^#\//, ""); return views[v] ? v : "overview"; }
+  const views = { play, overview, players, draw, matches, announce, display, settings, history, danger };
+  function current() { const v = location.hash.replace(/^#\//, ""); return views[v] ? v : "play"; }
   addEventListener("hashchange", () => { document.body.classList.remove("side-open"); render(); });
   $("#menuBtn").addEventListener("click", () => document.body.classList.toggle("side-open"));
 
@@ -211,10 +211,88 @@
       <button data-act="take-server">სერვერის ვერსიის ჩატვირთვა</button><button data-act="force-save">ჩემი ვერსიის შენახვა</button></div>`;
   }
 
+  /* ---------- play: the simple screen. set up in one step, then tap who won ---------- */
+  function loc(n) { return n.endsWith("ი") ? n.slice(0, -1) + "ში" : n + "-ში"; }
+  function nextText(br, r, i) {
+    const nx = DT.nextInfo(br, r, i);
+    if (nx.final) return "ეს ფინალია: გამარჯვებული ჩემპიონი ხდება";
+    const o = nx.opp;
+    const who = o.id ? `<b>${esc(pname(o.id))}</b>` : o.pair ? `<b>${esc(pname(o.pair[0]))}</b> ან <b>${esc(pname(o.pair[1]))}</b>` : "მეტოქე ჯერ უცნობია";
+    return `გამარჯვებული გადის ${esc(loc(nx.round))} და ხვდება: ${who}`;
+  }
+  function playList() {
+    const br = draft.bracket, all = [];
+    br.rounds.forEach((row, r) => row.forEach((m, i) => { if (!DT.isBye(m)) all.push({ m, r, i }); }));
+    return all;
+  }
+  function card(x) {
+    const { m, r, i } = x, live = m.live && !m.winner;
+    const p = id => `<button class="pc__p" data-pwin="${m.id}" data-pid="${id}">${ballFor(id)}<span>${esc(pname(id))}</span></button>`;
+    return `<div class="pc${live ? " is-live" : ""}">
+      <div class="pc__top"><b>${esc(DT.roundName(draft.bracket.rounds[r].length, r))}</b>${live ? `<span class="pc__live">● LIVE</span>` : ""}
+        <input class="pc__tbl" data-table="${m.id}" value="${esc(m.table || "")}" placeholder="მაგიდა №" maxlength="4"></div>
+      <div class="pc__q">ვინ მოიგო? დააჭირე სახელს</div>
+      <div class="pc__pl">${p(m.a)}<span class="pc__vs">vs</span>${p(m.b)}</div>
+      <div class="pc__foot">
+        <input class="pc__sc" data-score="${m.id}" value="${esc(m.score || "")}" placeholder="ანგარიში, არასავალდებულო: 3-1" maxlength="9">
+        ${live ? `<button data-pstop="${m.id}">LIVE გამორთვა</button>` : `<button class="good" data-pstart="${m.id}">[ ▶ მაგიდაზე გამოძახება ]</button>`}
+      </div>
+      <div class="pc__next">${nextText(draft.bracket, r, i)}</div>
+    </div>`;
+  }
+  function play() {
+    const br = draft.bracket, s = draft.status;
+    if (!br) {
+      const n = draft.players.filter(p => !p.out).length;
+      return `<h2 class="vh">თამაში</h2><p class="lede">ახალი ტურნირი ერთ ნაბიჯში.</p>
+      <section class="box wiz"><div class="box-head">SETUP :: ახალი ტურნირი</div><div class="box-body">
+        <label for="wizN">1. რამდენი მოთამაშეა?</label>
+        <input id="wizN" class="wiz__n" type="number" min="2" max="128" value="${n >= 2 ? n : 16}" inputmode="numeric">
+        <label for="wizNames">2. სახელები (არასავალდებულო). თითო სახელი ცალკე ხაზზე. თუ ცარიელია, იქნება "მოთამაშე 1, 2, 3..." და მერე შეცვლი</label>
+        <textarea id="wizNames" placeholder="გიორგი&#10;ლევანი&#10;ნიკა">${esc(draft.players.filter(p => !p.out).map(p => p.name).join("\n"))}</textarea>
+        <label class="row" style="color:var(--ink);font-size:14px"><input type="checkbox" id="wizRandom" checked> შემთხვევითი წილისყრა</label>
+        <button class="big good" data-act="wiz-go">[ ▶ ბადის შექმნა ]</button>
+        <p class="lede">დანარჩენს სისტემა თავად აკეთებს: ქმნის წყვილებს, გამარჯვებულს ავტომატურად გადაიყვანს შემდეგ წრეში. თუ რაოდენობა 8, 16 ან 32 არ არის, ზოგიერთი მოთამაშე პირდაპირ მე-2 წრეში გადავა.</p>
+      </div></section>`;
+    }
+    const all = playList(), champ = DT.champion(draft);
+    const live = all.filter(x => x.m.live && !x.m.winner && DT.ready(x.m));
+    const ready = all.filter(x => DT.ready(x.m) && !x.m.winner && !x.m.live);
+    const waiting = all.filter(x => !x.m.winner && !DT.ready(x.m) && (x.m.a || x.m.b));
+    const done = all.filter(x => x.m.winner).sort((a, b) => (b.m.doneAt || "").localeCompare(a.m.doneAt || ""));
+    const st = DT.stats(draft);
+    let top = "";
+    if (s === "registration") top = `<button class="big good" data-act="start">[ ▶ ტურნირის დაწყება ]</button><a href="#/players"><button class="big">სახელების შეცვლა</button></a><button class="big danger-btn" data-act="wiz-reset">[ ახლიდან ]</button>`;
+    else if (s === "live") top = `<button class="big warnb" data-act="break-quick">[ ❚❚ შესვენება ]</button><button class="big" data-act="finish">[ ■ დასრულება ]</button>`;
+    else if (s === "break") top = `<button class="big good" data-act="resume">[ ▶ შესვენების დასრულება ]</button>`;
+    else top = `<button class="big" data-act="reopen">[ ↺ თავიდან გახსნა ]</button><button class="big danger-btn" data-act="new-tournament">[ ახალი ტურნირი ]</button>`;
+    return `<h2 class="vh">თამაში</h2>
+      <p class="lede"><span class="chip chip--${s}">${DT.STATUS[s].ka}</span> · მატჩი ${st.done}/${st.total} · ${st.active} მოთამაშე</p>
+      <div class="row play-top">${top}</div>
+      ${s === "break" ? `<div class="notice warn">შესვენება მიმდინარეობს. TV-ზე ჩანს "მალე გავაგრძელებთ".</div>` : ""}
+      ${champ ? `<div class="champ-box"><small>ჩემპიონი</small><b>${esc(pname(champ))}</b></div>` : ""}
+      ${live.length ? `<h3 class="sub">ახლა თამაშობენ · ${live.length}</h3><div class="pcs">${live.map(card).join("")}</div>` : ""}
+      ${ready.length ? `<h3 class="sub">შემდეგი მატჩები · ${ready.length}</h3><div class="pcs">${ready.map(card).join("")}</div>` : ""}
+      ${!live.length && !ready.length && !champ ? `<div class="notice">ახლა სათამაშო მატჩი არ არის.</div>` : ""}
+      ${waiting.length ? `<h3 class="sub">ელოდებიან მეტოქეს · ${waiting.length}</h3><div class="table-wrap"><table><tbody>
+        ${waiting.map(x => { const k = x.m.a || x.m.b; return `<tr><td>${ballFor(k)} ${esc(pname(k))}</td><td class="dim">${esc(DT.roundName(draft.bracket.rounds[x.r].length, x.r))} · მეტოქე ჯერ თამაშობს</td></tr>`; }).join("")}
+      </tbody></table></div>` : ""}
+      ${done.length ? `<h3 class="sub">დასრულდა · ${done.length}</h3><div class="table-wrap"><table><tbody>
+        ${done.map(x => {
+          const lose = x.m.winner === x.m.a ? x.m.b : x.m.a, R = draft.bracket.rounds;
+          const nxt = x.r < R.length - 1 ? R[x.r + 1][Math.floor(x.i / 2)] : null;
+          const canUndo = !nxt || !nxt.winner;
+          return `<tr><td><b>${esc(pname(x.m.winner))}</b> მოიგო ${esc(pname(lose))}${x.m.score ? ` · ${esc(x.m.score)}` : ""}</td>
+            <td class="dim">${esc(DT.roundName(R[x.r].length, x.r))}</td>
+            <td class="actions"><button data-pundo="${x.m.id}" ${canUndo ? "" : `disabled title="შემდეგი მატჩი უკვე ითამაშეს"`}>გაუქმება</button></td></tr>`;
+        }).join("")}
+      </tbody></table></div>` : ""}`;
+  }
+
   /* ---------- overview: tournament state controls ---------- */
   function overview() {
     const st = DT.stats(draft), br = draft.bracket, champ = DT.champion(draft);
-    const roundName = br && st.round !== null ? DT.roundName(br.rounds[st.round].length) : "n/a";
+    const roundName = br && st.round !== null ? DT.roundName(br.rounds[st.round].length, st.round) : "n/a";
     const lives = br ? br.rounds.flat().filter(m => m.live && !m.winner) : [];
     const steps = ["registration", "live", "break", "finished"].map(k => `<span class="step${draft.status === k ? " on" : ""}">${DT.STATUS[k].en}</span>`).join(`<span class="arrow">→</span>`);
     let controls = "";
@@ -350,7 +428,7 @@
       const list = real.filter(show);
       const byes = row.length - real.length;
       if (!list.length) return;
-      html += `<div class="round-h"><b>${esc(DT.roundName(row.length))}</b><span>${real.filter(m => m.winner).length}/${real.length} done${byes ? ` · ${byes} bye` : ""}</span></div>
+      html += `<div class="round-h"><b>${esc(DT.roundName(row.length, r))}</b><span>${real.filter(m => m.winner).length}/${real.length} done${byes ? ` · ${byes} bye` : ""}</span></div>
         <div class="match head"><span>id</span><span>table</span><span>player_a</span><span>score</span><span>player_b</span><span>live</span><span>call</span><span class="status">status</span></div>`;
       list.forEach(m => {
         const i = row.indexOf(m), ready = DT.ready(m), s0 = svMatch(m.id);
@@ -462,6 +540,62 @@
       if (act === "take-server") { const st = conflict; conflict = null; dirty = false; server.version = -2; adopt(st, true); return; }
       if (act === "force-save") { save(true); return; }
       if (t.dataset.filter) { filter = t.dataset.filter; render(); return; }
+      // play screen
+      if (act === "wiz-go") {
+        let n = Math.max(2, Math.min(128, parseInt($("#wizN").value, 10) || 0));
+        const names = $("#wizNames").value.split(/\r?\n/).map(x => x.replace(/^\s*\d+[\.\)]\s*/, "").trim()).filter(Boolean);
+        if (names.length > n) n = Math.min(128, names.length);
+        if (n < 2) return msg("მინიმუმ 2 მოთამაშე");
+        const list = [];
+        for (let k = 0; k < n; k++) list.push({ id: DT.uid(), name: (names[k] || `მოთამაშე ${k + 1}`).slice(0, 40) });
+        now(`ახალი ტურნირი: ${n} მოთამაშე`, () => {
+          draft.players = list;
+          draft.bracket = DT.makeBracket(list, $("#wizRandom").checked);
+          draft.status = "registration"; draft.breakInfo = null; draft.display = "auto";
+        }, `ბადე შეიქმნა: ${n} მოთამაშე · TV-ზე უკვე ჩანს`);
+        return;
+      }
+      if (act === "wiz-reset") {
+        if (!confirm("ბადე წაიშლება და დაბრუნდები პირველ ნაბიჯზე. სახელები დარჩება. გავაგრძელო?")) return;
+        now("ბადე წაიშალა", () => { draft.bracket = null; draft.status = "registration"; });
+        return;
+      }
+      if (act === "new-tournament") {
+        if (!confirm("ახალი ტურნირი? ეს ტურნირი წაიშლება (ისტორიაში დარჩება).")) return;
+        now("ახალი ტურნირი", () => { const keep = { title: draft.title, subtitle: draft.subtitle, game: draft.game }; draft = Object.assign(DT.emptyData(), keep); });
+        return;
+      }
+      if (act === "break-quick") { now("შესვენება", () => { draft.status = "break"; draft.breakInfo = { message: "", since: new Date().toISOString(), until: null }; }); return; }
+      if (t.dataset.pwin) {
+        const m = findMatch(t.dataset.pwin), id = t.dataset.pid;
+        if (!DT.ready(m) || m.winner === id) return;
+        const pos = (() => { const R = draft.bracket.rounds; for (let r = 0; r < R.length; r++) { const i = R[r].indexOf(m); if (i >= 0) return { r, i }; } })();
+        const nx = DT.nextInfo(draft.bracket, pos.r, pos.i);
+        now(`${pname(id)} მოიგო${m.score ? " " + m.score : ""}`, () => {
+          m.winner = id; m.wo = false; m.live = false; m.doneAt = new Date().toISOString();
+          if (draft.status === "registration") draft.status = "live";
+          if (draft.announce && draft.announce.kind === "call" && draft.announce.on && draft.announce.text.includes(pname(id))) draft.announce.on = false;
+          settle();
+        }, nx.final ? `${pname(id)} ჩემპიონია!` : `${pname(id)} გადის ${loc(nx.round)} · TV განახლდა`);
+        return;
+      }
+      if (t.dataset.pstart) {
+        const m = findMatch(t.dataset.pstart);
+        now(`გამოძახება: ${pname(m.a)} vs ${pname(m.b)}`, () => {
+          m.live = true;
+          if (draft.status === "registration") draft.status = "live";
+          draft.announce = { on: true, kind: "call", text: `${pname(m.a)} vs ${pname(m.b)}${m.table ? " · მაგიდა " + m.table : ""}`, until: new Date(Date.now() + 90000).toISOString() };
+        }, "მატჩი დაიწყო · TV-ზე გამოძახება ჩანს");
+        return;
+      }
+      if (t.dataset.pstop) { const m = findMatch(t.dataset.pstop); now(`LIVE off: ${pname(m.a)} vs ${pname(m.b)}`, () => { m.live = false; }); return; }
+      if (t.dataset.pundo) {
+        const m = findMatch(t.dataset.pundo);
+        if (!confirm(`გავაუქმო შედეგი: ${pname(m.winner)} მოიგო?`)) return;
+        now(`შედეგი გაუქმდა: ${pname(m.a)} vs ${pname(m.b)}`, () => { m.winner = null; m.wo = false; m.doneAt = null; settle(); }, "შედეგი გაუქმდა");
+        return;
+      }
+
 
       // state
       if (act === "start") { now("ტურნირი დაიწყო", () => { draft.status = "live"; draft.breakInfo = null; if (draft.display === "players") draft.display = "auto"; }); return; }

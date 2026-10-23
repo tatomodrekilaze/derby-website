@@ -36,7 +36,7 @@
   }
   function allMatches() {
     const out = [], br = data && data.bracket;
-    if (br) br.rounds.forEach((row, r) => row.forEach((mt, i) => { if (!DT.isBye(mt)) out.push({ mt, r, i, round: DT.roundName(row.length) }); }));
+    if (br) br.rounds.forEach((row, r) => row.forEach((mt, i) => { if (!DT.isBye(mt)) out.push({ mt, r, i, round: DT.roundName(row.length, r) }); }));
     return out;
   }
 
@@ -92,12 +92,24 @@
           ${list.map((p, i) => `<div class="pl-row${p.out ? " is-out" : ""}" style="--i:${keep ? 0 : i}"><em>${i + 1}</em>${dot(p.id)}<span>${esc(p.name)}</span></div>`).join("")}
         </div>
       </section>`;
+    requestAnimationFrame(fitNames);
   }
 
   function renderBoard() {
     main.innerHTML = `<section class="board">${bracketHTML()}${asideHTML()}</section>`;
-    requestAnimationFrame(drawLinks);
+    requestAnimationFrame(() => { fitNames(); drawLinks(); });
   }
+
+  // long Georgian names shrink a little to fit instead of being cut with "..."
+  function fitNames() {
+    $$(".r__n, .feat__row span, .list__row b, .pl-row span, .champ-card b").forEach(el => {
+      el.style.fontSize = "";
+      const base = parseFloat(getComputedStyle(el).fontSize);
+      let fs = base;
+      while (el.scrollWidth > el.clientWidth + 1 && fs > base * .62) { fs -= 1; el.style.fontSize = fs + "px"; }
+    });
+  }
+  if (document.fonts) document.fonts.ready.then(() => { fitNames(); drawLinks(); });
 
   function bracketHTML() {
     const R = data.bracket.rounds, U = R[0].length, st = DT.stats(data);
@@ -109,7 +121,7 @@
       const span = 2 ** r, real = row.filter(m => !DT.isBye(m));
       const baseRh = Math.max(14, Math.min(46, (unit * span - 12) / 2));
       html += `<div class="round${st.round === r ? " is-current" : ""}">
-        <div class="round__head"><b>${esc(DT.roundName(row.length))}</b><span>${real.filter(m => m.winner).length}/${real.length}</span></div>
+        <div class="round__head"><b>${esc(DT.roundName(row.length, r))}</b><span>${real.filter(m => m.winner).length}/${real.length}</span></div>
         <div class="round__slots" style="--units:${U}">`;
       row.forEach((mt, i) => {
         if (DT.isBye(mt)) return;
@@ -261,7 +273,7 @@
     if (moves.length > 3) banner("განახლება", `${moves.length} ახალი შედეგი`);
     else moves.forEach((id, k) => {
       const r = +id.match(/^r(\d+)/)[1];
-      setTimeout(() => banner("გადის · " + DT.roundName(br.rounds[r + 1].length), `${dot(now[id])}${esc(name(now[id]))}`, true), k * 4200);
+      setTimeout(() => banner("გადის · " + DT.roundName(br.rounds[r + 1].length, r + 1), `${dot(now[id])}${esc(name(now[id]))}`, true), k * 4200);
     });
     const champ = DT.champion(data);
     if (prevChamp !== undefined && champ && champ !== prevChamp) showChampion(champ);
