@@ -1,0 +1,4 @@
+exclude:
+  - server
+  - CODEX_PROMPT.md
+  - .claude
