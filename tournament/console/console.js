@@ -229,9 +229,9 @@
     } else if (s === "break") {
       const b = draft.breakInfo || {};
       const left = b.until ? Math.max(0, Math.round((new Date(b.until) - Date.now()) / 60000)) : null;
-      controls = `<div class="notice warn">შესვენება${b.until ? ` · გაგრძელდება ${hhmm(b.until)}-ზე (${left} წთ)` : ""}${b.message ? ` · „${esc(b.message)}“` : ""}</div>
+      controls = `<div class="notice warn">შესვენება${b.since ? ` დაიწყო ${hhmm(b.since)}-ზე` : ""}${b.until ? ` · გაგრძელდება ${hhmm(b.until)}-ზე (${left} წთ)` : " · დროის გარეშე"}${b.message ? ` · „${esc(b.message)}“` : ""}</div>
         <button class="big good" data-act="resume">[ ▶ გაგრძელება ]</button>
-        <button class="big" data-act="extend">[ +5 წთ ]</button>
+        ${b.until ? `<button class="big" data-act="extend">[ +5 წთ ]</button>` : ""}
         <button class="big" data-act="finish">[ ■ დასრულება ]</button>`;
     } else {
       controls = `${champ ? `<div class="notice ok">ჩემპიონი: ${esc(pname(champ))}</div>` : ""}
@@ -263,12 +263,11 @@
   }
   function breakForm() {
     return `<div class="breakform">
-      <label>ხანგრძლივობა</label>
-      <div class="row">${[5, 10, 15, 30].map(m => `<button data-act="break-go" data-min="${m}">${m} წთ</button>`).join("")}
-        <input id="breakMin" type="number" min="1" max="180" placeholder="სხვა, წთ" style="width:110px"></div>
       <label for="breakMsg">შეტყობინება TV-ზე (არასავალდებულო)</label>
       <input id="breakMsg" maxlength="80" placeholder="მაგ: ფინალამდე მოკლე შესვენება">
-      <div class="row"><button class="primary" data-act="break-go">[ შესვენების დაწყება ]</button><button data-act="break-close">გაუქმება</button></div>
+      <div class="row"><button class="primary" data-act="break-go" data-min="0">[ ❚❚ შესვენება, დროის გარეშე ]</button><button data-act="break-close">გაუქმება</button></div>
+      <label>ან ტაიმერით (TV-ზე უკუთვლა)</label>
+      <div class="row">${[5, 10, 15, 30].map(m => `<button data-act="break-go" data-min="${m}">${m} წთ</button>`).join("")}</div>
     </div>`;
   }
 
@@ -469,10 +468,13 @@
       if (act === "break-open") { breakOpen = true; render(); return; }
       if (act === "break-close") { breakOpen = false; render(); return; }
       if (act === "break-go") {
-        const mins = +(t.dataset.min || $("#breakMin").value || 10);
+        const mins = +(t.dataset.min || 0);
         const message = ($("#breakMsg") && $("#breakMsg").value.trim()) || "";
         breakOpen = false;
-        now(`შესვენება ${mins} წთ`, () => { draft.status = "break"; draft.breakInfo = { message, until: new Date(Date.now() + mins * 60000).toISOString() }; });
+        now(mins ? `შესვენება ${mins} წთ` : "შესვენება (დროის გარეშე)", () => {
+          draft.status = "break";
+          draft.breakInfo = { message, since: new Date().toISOString(), until: mins ? new Date(Date.now() + mins * 60000).toISOString() : null };
+        });
         return;
       }
       if (act === "extend") {

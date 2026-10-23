@@ -222,7 +222,11 @@
         const left = until - Date.now();
         $("#brkT").textContent = clockText(left);
         $("#brkU").textContent = left > 0 ? `გაგრძელება ${fmt.format(until)}-ზე` : "მალე გავაგრძელებთ";
-      } else { $("#brkT").textContent = "DERBY"; $("#brkU").textContent = ""; }
+      } else {
+        $("#brkT").textContent = "მალე გავაგრძელებთ";
+        $("#brkU").textContent = b.since ? `შესვენება დაიწყო ${fmt.format(new Date(b.since))}-ზე` : "";
+      }
+      $("#brkT").classList.toggle("is-text", !until);
     }
     const a = brkOn ? null : DT.activeAnnounce(data);
     const ann = $("#ann");
