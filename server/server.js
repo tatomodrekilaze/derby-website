@@ -89,7 +89,7 @@ const server = http.createServer(async (req, res) => {
   const ip = (req.headers["x-forwarded-for"] || req.socket.remoteAddress || "").split(",")[0].trim();
 
   try {
-    if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/api/health")) {
+    if ((req.method === "GET" || req.method === "HEAD") && (url.pathname === "/" || url.pathname === "/api/health")) {
       return send(res, 200, { ok: true, version: state.version, viewers: clients.size });
     }
     if (req.method === "GET" && url.pathname === "/api/state") return send(res, 200, state);
@@ -131,4 +131,4 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () => console.log(`[derby] live server on :${PORT}, ${clients.size} viewers, state v${state.version}`));
+server.listen(PORT, "0.0.0.0", () => console.log(`[derby] live server on :${PORT}, ${clients.size} viewers, state v${state.version}`));
