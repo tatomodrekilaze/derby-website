@@ -116,7 +116,7 @@
       mt.table = String(t); used.add(t); busy.add(mt.a); busy.add(mt.b);
     }
     if (adjusted && data.announce && data.announce.kind === "call") data.announce.on = false;
-    if (fill && data.status === "live") {
+    if (fill && data.status === "live" && data.autoCall !== false) {
       for (const { mt } of waiting(data)) {
         if (used.size >= count) break;
         if (mt.id === skipId || busy.has(mt.a) || busy.has(mt.b)) continue;
@@ -199,6 +199,7 @@
       subtitle: "სნუკერის ტურნირი",
       game: "snooker",
       tables: 1,
+      autoCall: true,
       display: "auto",
       status: "registration",
       startAt: "",

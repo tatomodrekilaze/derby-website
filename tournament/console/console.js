@@ -183,6 +183,7 @@
     s.textContent = saving ? "saving..." : dirty ? "unsaved changes" : "synced";
     $("#saveBtn").disabled = !dirty || saving;
     $$("[data-pwin]").forEach(button => { button.disabled = saving || !draft || draft.status !== "live"; });
+    $$("[data-pnow]").forEach(button => { button.disabled = saving || !draft || draft.status !== "live" || onTable().length >= tableCount(); });
     const chip = $("#sbChip");
     if (draft) { chip.className = "chip chip--" + draft.status; chip.textContent = DT.STATUS[draft.status].en; }
     const t = server.updatedAt ? tbilisi.format(new Date(server.updatedAt)) : "never";
@@ -242,6 +243,10 @@
     return DT.waiting(draft).map(x => ({ m: x.mt, r: x.r, i: x.i }));
   }
   function onTable() { return playList().filter(x => x.m.live && !x.m.winner); }
+  function callMode() {
+    return `<div class="notice call-mode"><label class="row" style="color:var(--ink);font-size:14px"><input id="autoCall" type="checkbox" ${draft.autoCall !== false ? "checked" : ""} aria-describedby="callHelp"> შემდეგი მატჩის ავტომატური გამოძახება</label>
+      <p id="callHelp" class="small-t dim">გამორთე, თუ გინდა თავად აირჩიო: თავისუფალ მაგიდაზე რიგიდან სასურველ მატჩს დააჭირე „გამოძახება“. მიმდინარე მატჩი ჯერ დაასრულე ან გადადე. ბადის წყვილები არ იცვლება.</p></div>`;
+  }
   // keep every table busy: put the next matches in the queue on free tables and call them on the TV
   function fillTables(skipId) {
     if (!draft.bracket || draft.status !== "live") return null;
@@ -304,15 +309,16 @@
     return `<h2 class="vh">თამაში</h2>
       <p class="lede"><span class="chip chip--${s}">${DT.STATUS[s].ka}</span> · მატჩი ${st.done}/${st.total} · ${st.active} მოთამაშე · ${T} მაგიდა</p>
       <div class="row play-top">${top}</div>
-      ${s === "registration" ? `<div class="notice">დააჭირე დაწყებას: პირველი მატჩი ავტომატურად გავა მაგიდაზე და TV-ზე გამოიძახებს მოთამაშეებს.</div>` : ""}
+      ${callMode()}
+      ${s === "registration" ? `<div class="notice">${draft.autoCall === false ? "დააჭირე დაწყებას, შემდეგ რიგიდან აირჩიე სასურველი მატჩი და გამოიძახე მაგიდაზე." : "დააჭირე დაწყებას: პირველი მატჩი ავტომატურად გავა მაგიდაზე და TV-ზე გამოიძახებს მოთამაშეებს."}</div>` : ""}
       ${s === "break" ? `<div class="notice warn">შესვენება მიმდინარეობს. TV-ზე ჩანს "მალე გავაგრძელებთ".</div>` : ""}
       ${server.data && server.data.bracket && server.data.bracket.rounds.flat().filter(m => m.live && !m.winner).length > T ? `<div class="notice warn">გამოყენებულია ${T} მაგიდის ლიმიტი. ზედმეტი LIVE მატჩები რიგში დაბრუნდა, ანგარიშები შენარჩუნებულია. <button data-act="save-schedule">შენახვა</button></div>` : ""}
       ${champ ? `<div class="champ-box"><small>ჩემპიონი</small><b>${esc(pname(champ))}</b></div>` : ""}
       ${live.length ? `<h3 class="sub">${T > 1 ? `მაგიდებზე · ${live.length}/${T}` : "ახლა მაგიდაზე"}</h3><div class="pcs">${live.map(liveCard).join("")}</div>` : ""}
-      ${!live.length && !champ && s === "live" ? `<div class="notice">მაგიდა თავისუფალია. ${q.length ? `<button data-act="fill">შემდეგი მატჩის გაშვება</button>` : "რიგში მატჩი არ არის: ველოდებით შედეგებს."}</div>` : ""}
+      ${!live.length && !champ && s === "live" ? `<div class="notice">მაგიდა თავისუფალია. ${q.length ? (draft.autoCall === false ? "რიგიდან აირჩიე სასურველი მატჩი და დააჭირე „გამოძახება“." : `<button data-act="fill">შემდეგი მატჩის გაშვება</button>`) : "რიგში მატჩი არ არის: ველოდებით შედეგებს."}</div>` : ""}
       ${q.length ? `<h3 class="sub">რიგი · ${q.length}</h3><div class="table-wrap"><table><tbody>
         ${q.map((x, k) => `<tr><td class="num">${k + 1}.</td><td>${ballFor(x.m.a)} ${esc(pname(x.m.a))} <span class="dim">vs</span> ${ballFor(x.m.b)} ${esc(pname(x.m.b))}<div class="dim small-t">${esc(DT.roundName(draft.bracket.rounds[x.r].length, x.r))}</div></td>
-          <td class="actions"><button data-pnow="${x.m.id}" ${s !== "live" || live.length >= T ? `disabled title="ჯერ გაათავისუფლე მაგიდა"` : ""}>ახლა</button></td></tr>`).join("")}
+          <td class="actions"><button class="call-match" data-pnow="${x.m.id}" aria-label="გამოძახება: ${esc(pname(x.m.a))} vs ${esc(pname(x.m.b))}" ${saving || s !== "live" || live.length >= T ? `disabled title="ჯერ დაასრულე ან გადადე მიმდინარე მატჩი; შესვენებისას დაასრულე შესვენება"` : ""}>გამოძახება</button></td></tr>`).join("")}
       </tbody></table></div>` : ""}
       ${waiting.length ? `<h3 class="sub">ელოდებიან მეტოქეს · ${waiting.length}</h3><div class="table-wrap"><table><tbody>
         ${waiting.map(x => { const k = x.m.a || x.m.b; return `<tr><td>${ballFor(k)} ${esc(pname(k))}</td><td class="dim">${esc(DT.roundName(draft.bracket.rounds[x.r].length, x.r))}</td></tr>`; }).join("")}
@@ -536,6 +542,7 @@
           ${[["snooker", "სნუკერი · მწვანე"], ["pool", "პული · ლურჯი"], ["russian", "რუსული · ზურმუხტისფერი"]].map(([v, t]) => `<option value="${v}" ${draft.game === v ? "selected" : ""}>${v} :: ${t}</option>`).join("")}
         </select></div>
         <div><label for="sTables">მაგიდების რაოდენობა</label><input id="sTables" type="number" min="1" max="20" step="1" required inputmode="numeric" value="${tableCount()}" aria-describedby="tableHelp"><p id="tableHelp" class="lede">სნუკერისთვის 1 მაგიდა: ერთდროულად მხოლოდ ერთი მატჩი. რაოდენობის შემცირებისას ზედმეტი LIVE მატჩები რიგში ბრუნდება, შედეგები რჩება.</p></div>
+        ${callMode()}
         <div><label for="sStart">start_time · TV-ზე უკუთვლა რეგისტრაციისას</label><input id="sStart" type="datetime-local" data-field="startAt" value="${esc(draft.startAt || "")}"></div>
       </div>`;
   }
@@ -605,7 +612,7 @@
       }
       if (act === "new-tournament") {
         if (!confirm("ახალი ტურნირი? ეს ტურნირი წაიშლება (ისტორიაში დარჩება).")) return;
-        now("ახალი ტურნირი", () => { const keep = { title: draft.title, subtitle: draft.subtitle, game: draft.game, tables: draft.tables }; draft = Object.assign(DT.emptyData(), keep); });
+        now("ახალი ტურნირი", () => { const keep = { title: draft.title, subtitle: draft.subtitle, game: draft.game, tables: draft.tables, autoCall: draft.autoCall }; draft = Object.assign(DT.emptyData(), keep); });
         return;
       }
       if (act === "break-quick") { now("შესვენება", () => { draft.status = "break"; draft.breakInfo = { message: "", since: new Date().toISOString(), until: null }; }); return; }
@@ -626,6 +633,7 @@
         return;
       }
       if (t.dataset.pnow) {
+        if (saving) return;
         const m = putOnTable(t.dataset.pnow);
         if (!m) return;
         now(`მაგიდაზე: ${pname(m.a)} vs ${pname(m.b)}`, () => {
@@ -646,7 +654,7 @@
       }
 
       // state
-      if (act === "start") { now("ტურნირი დაიწყო", () => { draft.status = "live"; draft.breakInfo = null; if (draft.display === "players") draft.display = "auto"; fillTables(); }, "ტურნირი დაიწყო · პირველი მატჩი მაგიდაზეა"); return; }
+      if (act === "start") { now("ტურნირი დაიწყო", () => { draft.status = "live"; draft.breakInfo = null; if (draft.display === "players") draft.display = "auto"; fillTables(); }, () => draft.autoCall === false ? "ტურნირი დაიწყო · აირჩიე მატჩი რიგიდან" : "ტურნირი დაიწყო · პირველი მატჩი მაგიდაზეა"); return; }
       if (act === "break-open") { breakOpen = true; render(); return; }
       if (act === "break-close") { breakOpen = false; render(); return; }
       if (act === "break-go") {
@@ -776,6 +784,11 @@
     };
     view.onchange = e => {
       const t = e.target;
+      if (t.id === "autoCall") {
+        const automatic = t.checked;
+        now(automatic ? "ავტომატური გამოძახება ჩაირთო" : "მატჩებს თავად ვირჩევ", () => { draft.autoCall = automatic; fillTables(); });
+        return;
+      }
       if (t.id === "sTables") {
         if (!t.checkValidity() || !Number.isInteger(Number(t.value))) { t.reportValidity(); return; }
         draft.tables = Number(t.value); fillTables(); changed(true); return;

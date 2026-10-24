@@ -104,3 +104,44 @@ test('withdrawals advance opponents and restore clears automatic wins', () => {
   DT.settle(d.bracket, DT.outSet(d)); DT.schedule(d, true);
   assert.equal(m.winner, null); assert.equal(m.wo, false); invariant(d);
 });
+
+test('manual calling supports 20 players on one table in any ready-match order', () => {
+  const d = tournament(20); d.autoCall = false;
+  assert.equal(DT.schedule(d, true).length, 0);
+  let completed = 0;
+  while (!DT.champion(d)) {
+    assert.equal(live(d).length, 0);
+    const options = DT.waiting(d), chosen = options.at(-1).mt;
+    assert.ok(DT.startMatch(d, chosen.id).match);
+    assert.equal(live(d)[0].id, chosen.id);
+    invariant(d);
+    const other = DT.waiting(d)[0];
+    if (other) assert.equal(DT.startMatch(d, other.mt.id).error, 'table_busy');
+    chosen.winner = chosen.a;
+    DT.settle(d.bracket, DT.outSet(d));
+    assert.equal(DT.schedule(d, true).length, 0);
+    assert.ok(++completed < 20);
+  }
+  assert.equal(completed, 19);
+});
+
+test('switching to manual keeps the current match and leaves postponed tables free', () => {
+  const d = tournament(8); DT.schedule(d, true);
+  const current = live(d)[0]; current.score = '2-1';
+  d.autoCall = false; DT.schedule(d, true);
+  assert.equal(live(d)[0].id, current.id);
+  assert.equal(current.score, '2-1');
+  current.live = false; current.later = Date.now();
+  DT.schedule(d, true, current.id);
+  assert.equal(live(d).length, 0);
+  const chosen = DT.waiting(d)[1].mt;
+  assert.ok(DT.startMatch(d, chosen.id).match);
+  assert.equal(current.score, '2-1');
+  d.status = 'break';
+  assert.equal(DT.startMatch(d, current.id).error, 'not_live');
+  d.status = 'live'; chosen.winner = chosen.a;
+  DT.settle(d.bracket); DT.schedule(d, true);
+  assert.equal(live(d).length, 0);
+  d.autoCall = true; DT.schedule(d, true);
+  assert.equal(live(d).length, 1); invariant(d);
+});
