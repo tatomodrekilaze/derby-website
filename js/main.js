@@ -19,8 +19,18 @@
 
   /* ---------- language ---------- */
   const params = new URLSearchParams(location.search);
-  let lang = params.get("lang") || store.get("derby-lang") || "ka";
-  if (!I18N[lang]) lang = "ka";
+  // order: ?lang= link, then a language the visitor picked on the site, then the browser/phone language
+  function browserLang() {
+    const list = navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || ""];
+    for (const raw of list) {
+      const code = String(raw).toLowerCase().split("-")[0];
+      if (code === "ka" || code === "ru" || code === "en") return code;
+    }
+    return "en"; // any other language: English
+  }
+  let lang = params.get("lang");
+  if (!I18N[lang]) lang = store.get("derby-lang-choice");
+  if (!I18N[lang]) lang = browserLang();
   const t = k => (I18N[lang][k] != null ? I18N[lang][k] : I18N.ka[k]);
 
   function esc(s) { return s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
@@ -43,14 +53,13 @@
     tickClock();
     $$(".lang button").forEach(b => b.classList.toggle("is-on", b.dataset.lang === l));
     movePill();
-    store.set("derby-lang", l);
     if (!first && hasGsap) requestAnimationFrame(() => ScrollTrigger.refresh());
   }
   function movePill() {
     const on = $(".lang button.is-on"), pill = $(".lang__pill");
     if (on && pill) pill.style.transform = `translateX(${on.offsetLeft - 4}px)`;
   }
-  $$(".lang button").forEach(b => b.addEventListener("click", () => applyLang(b.dataset.lang)));
+  $$(".lang button").forEach(b => b.addEventListener("click", () => { store.set("derby-lang-choice", b.dataset.lang); applyLang(b.dataset.lang); }));
   addEventListener("resize", movePill);
 
   /* ---------- Tbilisi clock ---------- */
