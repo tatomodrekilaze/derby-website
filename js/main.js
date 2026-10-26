@@ -343,7 +343,7 @@
     const nav = $("#nav"), dock = $("#dock"), foot = $(".foot");
     let lastY = 0;
     const onScroll = y => {
-      const heroEnd = innerHeight * 1.4;
+      const heroEnd = innerHeight * .8;
       nav.classList.toggle("is-solid", y > heroEnd);
       dock.classList.toggle("is-on", y > heroEnd && y + innerHeight < foot.getBoundingClientRect().top + y + 160);
       if (y > heroEnd && y > lastY + 4) nav.classList.add("is-hidden");
@@ -365,7 +365,7 @@
   // DERBY is drawn on one canvas with the video clipped inside the letters.
   // A giant scaled CSS layer broke on phones, so the zoom happens in the drawing instead.
   const HC = { zoom: 1, enter: 1 };
-  let heroDraw = null, heroST = null;
+  let heroDraw = null, heroTL = null;
   function setupHeroCanvas() {
     const cv = $("#heroCanvas"), ctx = cv.getContext("2d"), media = $(".hero__media"), poster = new Image();
     poster.src = video.getAttribute("poster");
@@ -408,7 +408,7 @@
       ctx.drawImage(src, (W - dw) / 2, (H - dh) / 2, dw, dh);
     }
     function draw() {
-      if (!L || !W || (heroST && heroST.progress > .74)) return;
+      if (!L || !W || (heroTL && heroTL.progress() > .74)) return;
       const sc = HC.zoom * HC.enter;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.globalCompositeOperation = "source-over";
@@ -451,10 +451,8 @@
       .fromTo([".hero__sub", ".hero__ctas"], { autoAlpha: 0, y: 34 }, { autoAlpha: 1, y: 0, stagger: .04, duration: .14, ease: "power2.out" }, .76)
       .fromTo(".hero__hud", { autoAlpha: 0, y: 20 }, { autoAlpha: 1, y: 0, duration: .12 }, .82)
       .to({}, { duration: .1 });
-    heroST = ScrollTrigger.create({
-      trigger: ".hero", start: "top top", end: () => "+=" + innerHeight * 1.6,
-      pin: true, scrub: 1, animation: tl, invalidateOnRefresh: true, anticipatePin: 1
-    });
+    // no scroll lock: the reveal plays on its own after the intro, the page scrolls normally
+    heroTL = tl.pause().duration(2.4);
     // sound fades out as the next section comes up, and the video rests once it is gone
     ScrollTrigger.create({
       trigger: ".games", start: "top bottom", end: "top 25%",
@@ -464,23 +462,23 @@
       }
     });
   }
-  // people didn't realise the page continues below the big DERBY, so the hero opens itself
-  // after a few quiet seconds; any scroll, swipe or key press first leaves it to the visitor
-  let heroTouched = false;
-  ["wheel", "touchstart", "keydown"].forEach(k => addEventListener(k, () => { heroTouched = true; }, { passive: true, once: true }));
-  function openHero() {
-    const target = heroST ? heroST.end + 2 : innerHeight * 1.6;
-    if (lenis) lenis.scrollTo(target, { duration: 2.6, easing: x => (x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2) });
-    else scrollTo({ top: target, behavior: "smooth" });
+  // the reveal runs by itself; a scroll, swipe, tap or key press skips straight to the end
+  function openHero(fast) {
+    if (!heroTL) return;
+    if (fast) heroTL.timeScale(4);
+    if (!heroTL.isActive() && heroTL.progress() < 1) heroTL.play();
   }
-  $("#heroGo").addEventListener("click", () => { heroTouched = true; openHero(); });
+  ["wheel", "touchstart", "keydown", "pointerdown"].forEach(k => addEventListener(k, () => openHero(true), { passive: true, once: true }));
+  $("#heroGo").addEventListener("click", () => {
+    openHero(true);
+    const g = $("#games");
+    if (lenis) lenis.scrollTo(g, { duration: 1.4 }); else g.scrollIntoView({ behavior: "smooth" });
+  });
   function heroEnter() {
     if (reduced) return;
     gsap.fromTo(HC, { enter: 1.15 }, { enter: 1, duration: 2, ease: "expo.out" });
-    gsap.from(".hero__tag, .hero__go", { opacity: 0, y: 24, stagger: .12, duration: 1.2, ease: "expo.out", delay: .3 });
-    setTimeout(() => {
-      if (!heroTouched && scrollY < 10 && !document.body.classList.contains("menu-open")) openHero();
-    }, 4200);
+    gsap.from(".hero__tag", { opacity: 0, y: 24, duration: 1.2, ease: "expo.out", delay: .3 });
+    setTimeout(() => openHero(false), 1100);
   }
 
   /* ---------- reveals ---------- */

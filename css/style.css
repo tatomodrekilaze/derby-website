@@ -1148,3 +1148,9 @@ html[lang="ka"] .hero__tag { font-weight: 600; }
 @keyframes chevBob { 50% { transform: translateY(5px); } }
 @keyframes goGlow { 0% { box-shadow: 0 0 0 0 rgba(243, 217, 157, .45); } 100% { box-shadow: 0 0 0 14px rgba(243, 217, 157, 0); } }
 html[lang="ka"] .hero__go { font-size: 16px; }
+/* the scroll button now lives in the hero's bottom bar */
+.hero__hud .hero__go { position: static; transform: none; height: 46px; padding: 0 16px 0 20px; font-size: 14px; }
+@media (max-width: 560px) {
+  .hero__hud .hero__go { width: 46px; padding: 0; justify-content: center; }
+  .hero__hud .hero__go span { display: none; }
+}
