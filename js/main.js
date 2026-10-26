@@ -362,97 +362,14 @@
   }
 
   /* ---------- hero ---------- */
-  // DERBY is drawn on one canvas with the video clipped inside the letters.
-  // A giant scaled CSS layer broke on phones, so the zoom happens in the drawing instead.
-  const HC = { zoom: 1, enter: 1 };
-  let heroDraw = null, heroTL = null;
-  function setupHeroCanvas() {
-    const cv = $("#heroCanvas"), ctx = cv.getContext("2d"), media = $(".hero__media"), poster = new Image();
-    poster.src = video.getAttribute("poster");
-    const FONT = fs => `900 ${fs}px Unbounded, "Noto Sans Georgian", sans-serif`;
-    let W = 0, H = 0, dpr = 1, L = null;
-    function measure() {
-      dpr = Math.min(window.devicePixelRatio || 1, 2);
-      W = cv.clientWidth; H = cv.clientHeight;
-      cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
-      const stacked = W < 700 && H > W;
-      const fs = stacked ? Math.min(H * .146, W * .44) : Math.min(W * .205, H * .42);
-      ctx.font = FONT(fs);
-      const letters = ["D", "E", "R", "B", "Y"];
-      const asc = ctx.measureText("D").actualBoundingBoxAscent || fs * .72;
-      const items = [];
-      let bottom;
-      if (stacked) {
-        const lh = fs * .8, top = (H - lh * 5) / 2 + 10;
-        letters.forEach((c, i) => { const w = ctx.measureText(c).width; items.push({ c, x: (W - w) / 2, y: top + lh * i + lh / 2 + asc / 2 }); });
-        bottom = top + lh * 5;
-      } else {
-        const ls = -.03 * fs, ws = letters.map(c => ctx.measureText(c).width);
-        let x = (W - (ws.reduce((a, b) => a + b, 0) + ls * 4)) / 2;
-        letters.forEach((c, i) => { items.push({ c, x, y: H / 2 + asc / 2 }); x += ws[i] + ls; });
-        bottom = H / 2 + asc / 2;
-      }
-      // middle of the D's stem, so the zoom flies into solid letter, not the hole
-      const tc = document.createElement("canvas"), tw = Math.ceil(ctx.measureText("D").width) + 4, th = Math.ceil(asc) + 4;
-      tc.width = tw; tc.height = th;
-      const tx = tc.getContext("2d"); tx.font = FONT(fs); tx.fillText("D", 0, th - 2);
-      const row = tx.getImageData(0, Math.floor(th / 2), tw, 1).data;
-      let a = -1, b = -1;
-      for (let i = 0; i < tw; i++) { if (row[i * 4 + 3] > 128) { if (a < 0) a = i; b = i; } else if (a >= 0) break; }
-      const stem = a < 0 ? tw * .14 : (a + b) / 2;
-      L = { fs, items, ox: items[0].x + stem, oy: items[0].y - asc / 2 };
-      $(".hero").style.setProperty("--tag-top", Math.round(bottom + (stacked ? 16 : 34)) + "px");
-    }
-    function cover(src, sw, sh, k) {
-      const sc = Math.max(W / sw, H / sh) * k, dw = sw * sc, dh = sh * sc;
-      ctx.drawImage(src, (W - dw) / 2, (H - dh) / 2, dw, dh);
-    }
-    function draw() {
-      if (!L || !W || (heroTL && heroTL.progress() > .74)) return;
-      const sc = HC.zoom * HC.enter;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.globalCompositeOperation = "source-over";
-      ctx.clearRect(0, 0, W, H);
-      ctx.save();
-      ctx.translate(L.ox, L.oy); ctx.scale(sc, sc); ctx.translate(-L.ox, -L.oy);
-      ctx.font = FONT(L.fs); ctx.fillStyle = "#fff";
-      L.items.forEach(it => ctx.fillText(it.c, it.x, it.y));
-      ctx.restore();
-      ctx.globalCompositeOperation = "source-in";
-      const k = gsap.getProperty(media, "scale") || 1;
-      if (video.readyState >= 2 && video.videoWidth) cover(video, video.videoWidth, video.videoHeight, k);
-      else if (poster.complete && poster.naturalWidth) cover(poster, poster.naturalWidth, poster.naturalHeight, k);
-      else { ctx.fillStyle = "#26365f"; ctx.fillRect(0, 0, W, H); }
-      ctx.globalCompositeOperation = "destination-over";
-      ctx.fillStyle = "#05080f"; ctx.fillRect(0, 0, W, H);
-    }
-    measure();
-    addEventListener("resize", () => { measure(); draw(); });
-    gsap.ticker.add(draw);
-    return { measure, zoomTo: () => (L ? Math.hypot(W, H) * 2.6 / (L.fs * .17) : 40) };
-  }
+  // opens straight on the video and headline; the words just settle in once
   function initHero() {
-    if (reduced) {
-      gsap.set("#heroCanvas, .hero__pre", { autoAlpha: 0 });
-      gsap.set(".hero__shade", { opacity: 1 });
-      gsap.set(".hero__content, .hero__hud", { visibility: "visible" });
-      return;
+    gsap.set(".hero__shade", { opacity: 1 });
+    gsap.set(".hero__content, .hero__hud", { visibility: "visible" });
+    if (!reduced) {
+      gsap.set(".hero__title .line > *", { yPercent: 110 });
+      gsap.set([".hero__sub", ".hero__ctas", ".hero__hud"], { autoAlpha: 0, y: 24 });
     }
-    heroDraw = setupHeroCanvas();
-    ScrollTrigger.addEventListener("refreshInit", () => heroDraw.measure());
-    const tl = gsap.timeline({ defaults: { ease: "none" } });
-    tl.to(".hero__pre", { autoAlpha: 0, duration: .12 }, 0)
-      .fromTo(HC, { zoom: 1 }, { zoom: () => heroDraw.zoomTo(), ease: "power3.in", duration: .7 }, 0)
-      .fromTo(".hero__media", { scale: 1.22 }, { scale: 1, duration: .8 }, 0)
-      .to("#heroCanvas", { autoAlpha: 0, duration: .04 }, .68)
-      .to(".hero__shade", { opacity: 1, duration: .18 }, .64)
-      .set(".hero__content", { visibility: "visible" }, .7)
-      .fromTo(".hero__title .line > *", { yPercent: 115 }, { yPercent: 0, stagger: .05, duration: .16, ease: "power3.out" }, .72)
-      .fromTo([".hero__sub", ".hero__ctas"], { autoAlpha: 0, y: 34 }, { autoAlpha: 1, y: 0, stagger: .04, duration: .14, ease: "power2.out" }, .76)
-      .fromTo(".hero__hud", { autoAlpha: 0, y: 20 }, { autoAlpha: 1, y: 0, duration: .12 }, .82)
-      .to({}, { duration: .1 });
-    // no scroll lock: the reveal plays on its own after the intro, the page scrolls normally
-    heroTL = tl.pause().duration(2.4);
     // sound fades out as the next section comes up, and the video rests once it is gone
     ScrollTrigger.create({
       trigger: ".games", start: "top bottom", end: "top 25%",
@@ -462,23 +379,11 @@
       }
     });
   }
-  // the reveal runs by itself; a scroll, swipe, tap or key press skips straight to the end
-  function openHero(fast) {
-    if (!heroTL) return;
-    if (fast) heroTL.timeScale(4);
-    if (!heroTL.isActive() && heroTL.progress() < 1) heroTL.play();
-  }
-  ["wheel", "touchstart", "keydown", "pointerdown"].forEach(k => addEventListener(k, () => openHero(true), { passive: true, once: true }));
-  $("#heroGo").addEventListener("click", () => {
-    openHero(true);
-    const g = $("#games");
-    if (lenis) lenis.scrollTo(g, { duration: 1.4 }); else g.scrollIntoView({ behavior: "smooth" });
-  });
   function heroEnter() {
     if (reduced) return;
-    gsap.fromTo(HC, { enter: 1.15 }, { enter: 1, duration: 2, ease: "expo.out" });
-    gsap.from(".hero__tag", { opacity: 0, y: 24, duration: 1.2, ease: "expo.out", delay: .3 });
-    setTimeout(() => openHero(false), 1100);
+    gsap.fromTo(".hero__media", { scale: 1.06 }, { scale: 1, duration: 2.6, ease: "expo.out" });
+    gsap.to(".hero__title .line > *", { yPercent: 0, stagger: .09, duration: 1.3, ease: "expo.out", delay: .1 });
+    gsap.to([".hero__sub", ".hero__ctas", ".hero__hud"], { autoAlpha: 1, y: 0, stagger: .09, duration: 1.1, ease: "expo.out", delay: .35 });
   }
 
   /* ---------- reveals ---------- */
@@ -491,10 +396,9 @@
         head.classList.remove("is-pending");
         const tl = gsap.timeline();
         tl.fromTo($$(".sw > span", head), { yPercent: 115, rotate: 4 }, { yPercent: 0, rotate: 0, stagger: .06, duration: 1.2, ease: "expo.out" })
-          .fromTo($$(".kicker, .lead, .space__count", head), { autoAlpha: 0, y: 24 }, { autoAlpha: 1, y: 0, stagger: .08, duration: 1, ease: "expo.out" }, .1);
+          .fromTo($$(".kicker, .lead", head), { autoAlpha: 0, y: 24 }, { autoAlpha: 1, y: 0, stagger: .08, duration: 1, ease: "expo.out" }, .1);
       };
-      const isSpaceDesktop = head.classList.contains("space__intro") && innerWidth > 900;
-      ScrollTrigger.create({ trigger: isSpaceDesktop ? ".space" : head, start: isSpaceDesktop ? "top 60%" : "top 82%", once: true, onEnter: run });
+      ScrollTrigger.create({ trigger: head, start: "top 82%", once: true, onEnter: run });
     });
 
     // table cards slide in like balls on cloth
@@ -566,37 +470,29 @@
     });
   }
 
-  /* ---------- the space ---------- */
+  /* ---------- the space: a carousel with arrows (swipe works too) ---------- */
   function initSpace() {
-    if (reduced) return;
-    const mm = gsap.matchMedia();
-    mm.add("(min-width: 901px)", () => {
-      const track = $(".space__track");
-      const dist = () => Math.max(0, track.scrollWidth - innerWidth);
-      const tween = gsap.to(track, {
-        x: () => -dist(), ease: "none",
-        scrollTrigger: {
-          trigger: ".space", start: "top top", end: () => "+=" + dist(), pin: true, scrub: 1, invalidateOnRefresh: true, anticipatePin: 1,
-          onUpdate: s => { const i = Math.min(6, 1 + Math.floor(s.progress * 6)); $("#spaceNow").textContent = i; }
-        }
-      });
-      $$(".shot").forEach(fig => {
-        const img = $("img", fig), box = $(".shot__img", fig);
-        gsap.fromTo(img, { xPercent: -9 }, { xPercent: 9, ease: "none", scrollTrigger: { trigger: fig, containerAnimation: tween, start: "left right", end: "right left", scrub: true } });
-        gsap.fromTo(box, { clipPath: "inset(18% 12% 18% 12% round 18px)" }, { clipPath: "inset(0% 0% 0% 0% round 18px)", ease: "none", scrollTrigger: { trigger: fig, containerAnimation: tween, start: "left 100%", end: "left 55%", scrub: true } });
-        gsap.fromTo($("figcaption", fig), { autoAlpha: 0, y: 20 }, { autoAlpha: 1, y: 0, scrollTrigger: { trigger: fig, containerAnimation: tween, start: "left 75%", toggleActions: "play none none reverse" } });
-      });
-    });
-    mm.add("(max-width: 900px)", () => {
-      // each photo pins under the nav; the next one slides over it and pushes it back into the dark
-      const shots = $$(".shot");
-      shots.forEach((fig, i) => {
-        const box = $(".shot__img", fig), img = $("img", fig), next = shots[i + 1];
-        gsap.fromTo(box, { clipPath: "inset(14% 8% 0% 8% round 24px)" }, { clipPath: "inset(0% 0% 0% 0% round 24px)", ease: "none", scrollTrigger: { trigger: fig, start: "top bottom", end: "top 45%", scrub: true } });
-        gsap.fromTo(img, { yPercent: -6 }, { yPercent: 6, ease: "none", scrollTrigger: { trigger: fig, start: "top bottom", end: "bottom top", scrub: true } });
-        if (next) gsap.fromTo(box, { scale: 1, filter: "brightness(1)" }, { scale: .9, filter: "brightness(.35)", ease: "none", immediateRender: false, scrollTrigger: { trigger: next, start: "top bottom", end: "top 20%", scrub: true } });
-      });
-    });
+    const track = $("#spaceTrack"), shots = $$(".shot", track), prev = $("#spPrev"), next = $("#spNext"), nowEl = $("#spaceNow");
+    if (!track) return;
+    const step = () => { const s0 = shots[0], s1 = shots[1]; return s1 ? s1.offsetLeft - s0.offsetLeft : track.clientWidth; };
+    const index = () => Math.round(track.scrollLeft / step());
+    function paint() {
+      const i = Math.min(shots.length - 1, index()), max = track.scrollWidth - track.clientWidth - 4;
+      nowEl.textContent = i + 1;
+      prev.disabled = track.scrollLeft < 4;
+      next.disabled = track.scrollLeft > max;
+      shots.forEach((s, k) => s.classList.toggle("is-on", k === i));
+    }
+    const go = dir => track.scrollTo({ left: Math.max(0, (index() + dir) * step()), behavior: "smooth" });
+    prev.addEventListener("click", () => go(-1));
+    next.addEventListener("click", () => go(1));
+    track.addEventListener("scroll", () => requestAnimationFrame(paint), { passive: true });
+    track.addEventListener("keydown", e => { if (e.key === "ArrowRight") { e.preventDefault(); go(1); } if (e.key === "ArrowLeft") { e.preventDefault(); go(-1); } });
+    addEventListener("resize", paint);
+    paint();
+    if (!reduced && hasGsap) {
+      gsap.fromTo(shots, { autoAlpha: 0, x: 80 }, { autoAlpha: 1, x: 0, stagger: .08, duration: 1.2, ease: "expo.out", scrollTrigger: { trigger: track, start: "top 85%", once: true } });
+    }
   }
 
   /* ---------- intro ---------- */
