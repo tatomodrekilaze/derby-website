@@ -1130,3 +1130,21 @@ html[lang="ka"] .hero__tag { font-weight: 600; }
 .tour-dot[hidden] { display: none; }
 .menu__tour .tour-dot { width: 12px; height: 12px; margin-left: 4px; }
 .is-live-tour.nav__tour { color: var(--cream); }
+
+/* "scroll down" hint: a real button, so nobody thinks the big DERBY is the whole page */
+.hero__go {
+  position: absolute; left: 50%; bottom: calc(26px + env(safe-area-inset-bottom)); transform: translateX(-50%);
+  pointer-events: auto; display: inline-flex; align-items: center; gap: 12px;
+  height: 52px; padding: 0 20px 0 24px; border-radius: 999px;
+  background: rgba(5, 8, 15, .55); border: 1px solid rgba(243, 217, 157, .45); color: var(--cream);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  font-family: var(--f-display); font-weight: 600; font-size: 15px; white-space: nowrap;
+  box-shadow: 0 0 0 0 rgba(243, 217, 157, .5); animation: goGlow 2.4s ease-out infinite;
+  transition: background .4s, color .4s;
+}
+.hero__go:hover { background: var(--cream); color: var(--ink); }
+.hero__chev { position: relative; width: 22px; height: 22px; border-radius: 50%; background: var(--gold); flex: none; animation: chevBob 1.4s ease-in-out infinite; }
+.hero__chev::after { content: ""; position: absolute; left: 50%; top: 42%; width: 7px; height: 7px; border-right: 2px solid #1a1206; border-bottom: 2px solid #1a1206; transform: translate(-50%, -50%) rotate(45deg); }
+@keyframes chevBob { 50% { transform: translateY(5px); } }
+@keyframes goGlow { 0% { box-shadow: 0 0 0 0 rgba(243, 217, 157, .45); } 100% { box-shadow: 0 0 0 14px rgba(243, 217, 157, 0); } }
+html[lang="ka"] .hero__go { font-size: 16px; }

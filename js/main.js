@@ -464,10 +464,23 @@
       }
     });
   }
+  // people didn't realise the page continues below the big DERBY, so the hero opens itself
+  // after a few quiet seconds; any scroll, swipe or key press first leaves it to the visitor
+  let heroTouched = false;
+  ["wheel", "touchstart", "keydown"].forEach(k => addEventListener(k, () => { heroTouched = true; }, { passive: true, once: true }));
+  function openHero() {
+    const target = heroST ? heroST.end + 2 : innerHeight * 1.6;
+    if (lenis) lenis.scrollTo(target, { duration: 2.6, easing: x => (x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2) });
+    else scrollTo({ top: target, behavior: "smooth" });
+  }
+  $("#heroGo").addEventListener("click", () => { heroTouched = true; openHero(); });
   function heroEnter() {
     if (reduced) return;
     gsap.fromTo(HC, { enter: 1.15 }, { enter: 1, duration: 2, ease: "expo.out" });
-    gsap.from(".hero__tag, .hero__cue", { opacity: 0, y: 24, stagger: .12, duration: 1.2, ease: "expo.out", delay: .3 });
+    gsap.from(".hero__tag, .hero__go", { opacity: 0, y: 24, stagger: .12, duration: 1.2, ease: "expo.out", delay: .3 });
+    setTimeout(() => {
+      if (!heroTouched && scrollY < 10 && !document.body.classList.contains("menu-open")) openHero();
+    }, 4200);
   }
 
   /* ---------- reveals ---------- */
