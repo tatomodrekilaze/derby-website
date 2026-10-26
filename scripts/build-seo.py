@@ -29,12 +29,15 @@ def structured_data(locale, page):
                                               'referenceQuantity': {'@type': 'QuantitativeValue', 'value': 1, 'unitCode': 'HUR'}},
                        'itemOffered': {'@type': 'Service', 'name': name + ' table hire'}})
     return {'@context': 'https://schema.org', '@graph': [
-        {'@type': 'WebSite', '@id': ORIGIN + '/#website', 'url': ORIGIN + '/', 'name': 'Derby Billiards Club', 'inLanguage': ['ka', 'en', 'ru']},
+        {'@type': 'WebSite', '@id': ORIGIN + '/#website', 'url': ORIGIN + '/', 'name': 'Derby Billiards Club',
+         'publisher': {'@id': ORIGIN + '/#club'}, 'inLanguage': ['ka', 'en', 'ru']},
         {'@type': 'WebPage', '@id': page + '#webpage', 'url': page, 'name': dictionaries[locale]['meta.title'],
-         'inLanguage': locale, 'isPartOf': {'@id': ORIGIN + '/#website'}, 'about': {'@id': ORIGIN + '/#club'}},
+         'inLanguage': locale, 'isPartOf': {'@id': ORIGIN + '/#website'}, 'about': {'@id': ORIGIN + '/#club'},
+         'mainEntity': {'@id': ORIGIN + '/#club'}},
         {'@type': 'SportsActivityLocation', '@id': ORIGIN + '/#club', 'name': 'DERBY Billiards Club',
          'alternateName': 'საბილიარდო კლუბი დერბი', 'url': ORIGIN + '/',
-         'image': ORIGIN + '/assets/video/poster.jpg', 'logo': ORIGIN + '/assets/img/favicon.png',
+         'image': ORIGIN + '/assets/video/poster.jpg',
+         'logo': {'@type': 'ImageObject', 'url': ORIGIN + '/assets/img/favicon.png', 'width': 512, 'height': 512},
          'telephone': '+995568030505', 'priceRange': '10-20 GEL', 'currenciesAccepted': 'GEL',
          'hasMap': 'https://maps.app.goo.gl/Qpp5x2Lm3EM8fWaK8',
          'address': {'@type': 'PostalAddress', 'streetAddress': '3 Marat Nozadze Street, Gldani', 'addressLocality': 'Tbilisi', 'addressCountry': 'GE'},
