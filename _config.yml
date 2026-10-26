@@ -3,3 +3,7 @@ exclude:
   - CODEX_PROMPT.md
   - .claude
   - tests
+  - src
+  - scripts
+  - seo
+  - marketing

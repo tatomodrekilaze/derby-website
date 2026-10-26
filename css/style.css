@@ -231,13 +231,13 @@ html[lang="ka"] .intro__sub { letter-spacing: .2em; font-size: 14px; }
   border: 1px solid var(--line-2); border-radius: 999px;
   background: rgba(5, 8, 15, .4); backdrop-filter: blur(10px);
 }
-.lang button {
+.lang [data-lang] {
   position: relative; z-index: 1;
   width: 44px; height: 32px; border-radius: 999px;
   font-size: 12px; font-weight: 700; letter-spacing: .04em; color: var(--cream-2);
   transition: color .4s;
 }
-.lang button.is-on { color: var(--ink); }
+.lang [data-lang].is-on { color: var(--ink); }
 .lang__pill {
   position: absolute; top: 4px; left: 4px; width: 44px; height: 32px; border-radius: 999px;
   background: linear-gradient(120deg, var(--gold-hi), var(--gold));
@@ -734,7 +734,7 @@ html[lang="ka"] .foot__line { font-style: normal; font-weight: 700; }
   :root { --nav-h: 66px; }
   .nav__links, .nav__call { display: none; }
   .burger { display: block; }
-  .lang button { width: 40px; height: 30px; }
+  .lang [data-lang] { width: 40px; height: 30px; }
   .lang__pill { width: 40px; height: 30px; }
 
   /* tables: swipe between them like picking a table */
@@ -815,7 +815,7 @@ html[lang="ka"] .foot__line { font-style: normal; font-weight: 700; }
   padding-right: .08em;
 }
 html:not([lang="ka"]) .hero__title, html:not([lang="ka"]) .title { word-spacing: .1em; }
-.lang button.is-on { color: #1a1206; font-weight: 800; }
+.lang [data-lang].is-on { color: #1a1206; font-weight: 800; }
 
 /* ---------- numbered balls (instead of 01, 02, 03) ---------- */
 .nball {
@@ -1222,3 +1222,17 @@ html[lang="ka"] .hero__go { font-size: 16px; }
 .nav__links a::before { content: ""; position: absolute; left: 0; right: 0; bottom: -6px; height: 1px; background: var(--gold); transform: scaleX(0); transform-origin: left; transition: transform .45s var(--ease); }
 .nav__links a:hover::before { transform: scaleX(1); }
 @media (prefers-reduced-motion: reduce) { .hero__video, .btn--gold::after { animation: none; } }
+
+/* Crawlable language links retain the existing segmented control. */
+.lang a[data-lang] { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+/* Useful local information for visitors, in the same visual system. */
+.visitor-guide { border-top: 1px solid var(--line); }
+.visitor-guide__title { max-width: 22ch; font-family: var(--f-display); font-size: clamp(30px, 4vw, 60px); font-weight: 700; line-height: 1.25; margin: 18px 0 24px; }
+.visitor-guide__intro { color: var(--cream-2); max-width: 65ch; font-size: 16px; line-height: 1.8; }
+.visitor-guide__questions { display: grid; grid-template-columns: 1fr 1fr; gap: 0 48px; margin-top: 32px; }
+.visitor-guide details { padding: 22px 0; border-top: 1px solid var(--line); }
+.visitor-guide summary { cursor: pointer; font-size: 17px; font-weight: 600; line-height: 1.5; padding: 4px 24px 4px 0; }
+.visitor-guide summary:focus-visible { outline: 2px solid var(--gold); outline-offset: 6px; }
+.visitor-guide details p { margin-top: 16px; max-width: 62ch; color: var(--cream-2); font-size: 15px; line-height: 1.85; }
+.visitor-guide__actions { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 26px; }
+@media (max-width: 700px) { .visitor-guide__questions { grid-template-columns: 1fr; } .visitor-guide__title { max-width: 100%; } }
